@@ -1,4 +1,3 @@
-cat site.yml 
 - name: Setup Workers and Custom Nginx
   hosts: workers
   become: true
