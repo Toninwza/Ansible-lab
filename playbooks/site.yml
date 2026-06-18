@@ -12,22 +12,15 @@
         - /etc/apt/keyrings/docker.asc
         - /etc/apt/keyrings/docker.gpg
 
-    - name: Install prerequisite packages
+    - name: Install prerequisite packages (with Python Docker SDK via APT)
       ansible.builtin.apt:
         name:
           - ca-certificates
           - curl
-          - python3-pip
+          - python3-docker   
+          - python3-requests 
         state: present
         update_cache: yes
-
-    - name: Install Python Docker SDK
-      ansible.builtin.pip:
-        name:
-          - requests
-          - docker
-        state: present
-        executable: pip3
 
     - name: Create apt keyrings directory
       ansible.builtin.file:
