@@ -72,9 +72,8 @@
   loop:
     - /mnt-apps
     - /mnt-dbs
-
-handlers:
-  - name: Restart Docker
-    ansible.builtin.systemd:
-      name: docker
-      state: restarted
+    
+- name: Restart Docker service to apply configuration
+      ansible.builtin.systemd:
+        name: docker
+        state: restarted
