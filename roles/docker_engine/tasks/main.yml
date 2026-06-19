@@ -56,7 +56,11 @@
         "log-opts": {"max-size": "100m", "max-file": "5"}
       }
     dest: /etc/docker/daemon.json
-  notify: Restart Docker
+
+- name: Restart Docker service to apply configuration
+  ansible.builtin.systemd:
+    name: docker
+    state: restarted
 
 - name: Ensure Docker is started and enabled
   ansible.builtin.systemd:
@@ -73,7 +77,3 @@
     - /mnt-apps
     - /mnt-dbs
 
-- name: Restart Docker service to apply configuration
-  ansible.builtin.systemd:
-    name: docker
-    state: restarted
