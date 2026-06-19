@@ -40,7 +40,7 @@
 
 - name: Create Docker network nginx_proxy
   community.docker.docker_network:
-    name: "{{ docker_network_name }}"
+    name: "nginx-proxy"
     state: present
 
 - name: Run Nginx Proxy container
@@ -60,7 +60,7 @@
       TZ: "Asia/Bangkok"
       ENABLE_IPV6: "true"
     networks:
-      - name: "{{ docker_network_name }}"
+      - name: "nginx-proxy"
     restart_policy: always
     recreate: false
 
