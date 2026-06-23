@@ -1,6 +1,6 @@
 ---
 - name: On-demand server provisioning
-  hosts: "{{ target_host }}"   # ← รับ IP จาก variable แทน
+  hosts: all   
   become: true
 
   roles:
