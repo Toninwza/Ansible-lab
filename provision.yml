@@ -1,7 +1,12 @@
 ---
+- name: Register target host
+  hosts: localhost              # ← รันบนตัวเอง ไม่ต้องรู้ IP ก่อน
+  tasks:
+    - add_host:
+        name: "{{ target_host }}"   # ← ตอนนี้รู้ค่าแล้ว ใส่ใน memory
+
 - name: On-demand server provisioning
-  hosts: all   
-  become: true
+  hosts: dynamic               # ← ไปหยิบจาก memory แทน
 
   roles:
     - role: docker_engine
