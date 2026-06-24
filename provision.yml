@@ -1,13 +1,18 @@
 ---
 - name: Register target host
-  hosts: localhost              # ← รันบนตัวเอง ไม่ต้องรู้ IP ก่อน
+  hosts: localhost
+  gather_facts: false
   tasks:
-    - add_host:
-        name: "{{ target_host }}"   # ← ตอนนี้รู้ค่าแล้ว ใส่ใน memory
+    - name: Add EC2 to dynamic group
+      add_host:
+        name: "{{ target_host }}"
+        groups: dynamic
 
 - name: On-demand server provisioning
-  hosts: dynamic               # ← ไปหยิบจาก memory แทน
-
+  hosts: all:!localhost
+  become: true
+  vars:
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
   roles:
     - role: docker_engine
       when: install_docker | bool or install_nginx_proxy | bool or install_portainer_agent | bool
