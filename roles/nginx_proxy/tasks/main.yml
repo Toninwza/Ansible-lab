@@ -1,0 +1,80 @@
+# roles/nginx_proxy/tasks/main.yml
+---
+- name: Create Nginx infrastructure directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /opt/supalai-nginx/nginx
+    - /opt/supalai-nginx/vhost.d
+    - /var/log/nginx/reverse-proxy
+    - /etc/ssl/supalai_cert
+
+# TODO: cert จะถือโดยคนอื่น รอ task แยกมาทีหลัง
+# - name: Copy SSL certificates
+#   ansible.builtin.copy:
+#     src: "{{ playbook_dir }}/files/certs/{{ item }}"
+#     dest: "/etc/ssl/supalai_cert/{{ item }}"
+#     mode: '0600'
+#   loop:
+#     - supalai.com.crt
+#     - supalai.com.key
+
+- name: Copy Nginx config files
+  ansible.builtin.copy:
+    src: "nginx/{{ item }}"
+    dest: "/opt/supalai-nginx/nginx/{{ item }}"
+    mode: '0644'
+  loop:
+    - proxy.conf
+    - proxy-wide.conf
+
+# TODO: vhost.d ยังไม่ใช้ตอนนี้
+# - name: Copy vhost.d configurations
+#   ansible.builtin.copy:
+#     src: "vhost.d/"
+#     dest: /opt/supalai-nginx/vhost.d/
+#     mode: '0644'
+#   when: lookup('fileglob', role_path + '/files/vhost.d/*') | length > 0
+
+- name: Create Docker network nginx_proxy
+  community.docker.docker_network:
+    name: "nginx_proxy"
+    state: present
+
+- name: Run Nginx Proxy container
+  community.docker.docker_container:
+    name: nginx-proxy
+    image: "nginxproxy/nginx-proxy:1.7"
+    ports:
+      - "82:82"
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - /opt/supalai-nginx/nginx/proxy.conf:/etc/nginx/proxy.conf
+      - /opt/supalai-nginx/nginx/proxy-wide.conf:/etc/nginx/conf.d/my_proxy.conf:ro
+      - /var/log/nginx/reverse-proxy:/var/log/nginx
+      - /opt/supalai-nginx/vhost.d:/etc/nginx/vhost.d:ro
+    env:
+      TZ: "Asia/Bangkok"
+      ENABLE_IPV6: "true"
+    networks:
+      - name: "nginx_proxy"
+    restart_policy: always
+    recreate: false
+
+- name: Create logrotate config for nginx
+  ansible.builtin.copy:
+    content: |
+      /var/log/nginx/reverse-proxy/*.log {
+              monthly
+              rotate 12
+              compress
+              delaycompress
+              missingok
+              notifempty
+              create 644 root root
+      }
+    dest: /etc/logrotate.d/nginx-reverse-proxy-log
+    mode: '0644'

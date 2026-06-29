@@ -1,0 +1,20 @@
+---
+- name: Check Docker service is active
+  ansible.builtin.systemd:
+    name: docker
+  register: docker_status
+  failed_when: docker_status.status.ActiveState != "active"
+
+- name: Check nginx-proxy container is running
+  community.docker.docker_container_info:
+    name: nginx-proxy
+  register: nginx_info
+  failed_when: not nginx_info.exists or nginx_info.container.State.Status != "running"
+  when: install_nginx_proxy | bool
+
+- name: Check portainer_agent container is running
+  community.docker.docker_container_info:
+    name: portainer_agent
+  register: pa_info
+  failed_when: not pa_info.exists or pa_info.container.State.Status != "running"
+  when: install_portainer_agent | bool
