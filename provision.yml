@@ -16,10 +16,13 @@
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
   roles:
     - role: docker_engine
-      when: install_docker | bool or install_nginx_proxy | bool or install_portainer_agent | bool
+      when: install_docker | bool or install_nginx_proxy | bool or install_portainer_server | bool or install_portainer_agent | bool
 
     - role: nginx_proxy
       when: install_nginx_proxy | bool
+    
+    - role: portainer_server
+      when: install_portainer_server | bool
 
     - role: portainer_agent
       when: install_portainer_agent | bool
@@ -34,6 +37,7 @@
       when: >
         install_docker | bool or
         install_nginx_proxy | bool or
+        install_portainer_server | bool or
         install_portainer_agent | bool or
         install_nvm | bool or
         install_dotnet | bool
