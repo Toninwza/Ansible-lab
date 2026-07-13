@@ -1,0 +1,35 @@
+---
+- name: Install prerequisites for Microsoft repo
+  ansible.builtin.apt:
+    name:
+      - wget
+      - apt-transport-https
+    state: present
+    update_cache: yes
+
+- name: Add Microsoft package signing key
+  ansible.builtin.get_url:
+    url: https://packages.microsoft.com/keys/microsoft.asc
+    dest: /etc/apt/keyrings/microsoft.asc
+    mode: '0644'
+
+- name: Add Microsoft .NET APT repository
+  ansible.builtin.apt_repository:
+    repo: "deb [arch={{ ansible_architecture | replace('x86_64', 'amd64') }} signed-by=/etc/apt/keyrings/microsoft.asc] https://packages.microsoft.com/repos/microsoft-ubuntu-{{ ansible_distribution_release }}-prod {{ ansible_distribution_release }} main"
+    state: present
+    filename: microsoft-dotnet
+
+- name: Install .NET SDK 10
+  ansible.builtin.apt:
+    name: dotnet-sdk-10.0
+    state: present
+    update_cache: yes
+
+- name: Verify .NET installation
+  ansible.builtin.command: dotnet --version
+  register: dotnet_version
+  changed_when: false
+
+- name: Show installed .NET version
+  ansible.builtin.debug:
+    msg: "Installed .NET version: {{ dotnet_version.stdout }}"

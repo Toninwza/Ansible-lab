@@ -2,7 +2,7 @@
 - name: Run Portainer Agent container
   community.docker.docker_container:
     name: portainer_agent
-    image: "portainer/agent:2.21.1"
+    image: "portainer/agent:2.21.0"
     ports:
       - "9001:9001"
     volumes:

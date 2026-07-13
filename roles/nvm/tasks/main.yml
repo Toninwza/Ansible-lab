@@ -1,0 +1,38 @@
+---
+- name: Install NVM dependencies
+  ansible.builtin.apt:
+    name:
+      - curl
+      - git
+      - build-essential
+    state: present
+    update_cache: yes
+
+- name: Get latest NVM version
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/nvm-sh/nvm/releases/latest
+    return_content: yes
+  register: nvm_release
+
+- name: Set NVM version fact
+  ansible.builtin.set_fact:
+    nvm_version: "{{ nvm_release.json.tag_name }}"
+
+- name: Install NVM for deployer user
+  ansible.builtin.shell: |
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/{{ nvm_version }}/install.sh | bash
+  args:
+    executable: /bin/bash
+    creates: "/home/{{ nvm_user }}/.nvm/nvm.sh"
+  become: true
+  become_user: "{{ nvm_user }}"
+
+- name: Install Node.js LTS via NVM
+  ansible.builtin.shell: |
+    source ~/.nvm/nvm.sh && nvm install --lts && nvm alias default lts/*
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ nvm_user }}"
+  register: node_install
+  changed_when: "'already installed' not in node_install.stdout"
