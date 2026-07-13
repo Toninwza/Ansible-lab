@@ -10,3 +10,32 @@
       - /var/lib/docker/volumes:/var/lib/docker/volumes
     restart_policy: always
     recreate: false
+
+# ตรงตาม Step to Install New Server.txt ข้อ 5:
+# "Add Environment to Portainer Host in each environment"
+# Server อยู่เครื่องเดียวกับ Agent แล้ว (localhost) เลยไม่ต้อง delegate_to
+# ใช้ token ที่ role portainer_server สร้างไว้ให้ผ่าน portainer_local_token
+- name: Check if this host is already registered as an environment
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/endpoints"
+    method: GET
+    validate_certs: false
+    headers:
+      Authorization: "Bearer {{ portainer_local_token }}"
+    status_code: 200
+  register: portainer_existing_endpoints
+
+- name: Register this host to its local Portainer Server
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/endpoints"
+    method: POST
+    validate_certs: false
+    headers:
+      Authorization: "Bearer {{ portainer_local_token }}"
+    body_format: form-urlencoded
+    body:
+      Name: "{{ inventory_hostname }}"
+      EndpointCreationType: 1
+      URL: "tcp://localhost:9001"
+    status_code: 200
+  when: portainer_existing_endpoints.json | selectattr('Name', 'equalto', inventory_hostname) | list | length == 0

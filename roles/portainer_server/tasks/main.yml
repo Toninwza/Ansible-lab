@@ -1,0 +1,107 @@
+---
+- name: Create Portainer Server data directory
+  ansible.builtin.file:
+    path: /mnt-apps/portainer-server/data
+    state: directory
+    mode: '0755'
+
+# Idempotency: เช็คก่อนว่ามี container ชื่อนี้อยู่แล้วหรือยัง ถ้ามีข้ามการสร้างใหม่
+- name: Check if Portainer Server container already exists
+  community.docker.docker_container_info:
+    name: portainer_server
+  register: portainer_server_info
+  failed_when: false
+
+- name: Run Portainer Server container
+  community.docker.docker_container:
+    name: portainer_server
+    image: "portainer/portainer-ce:2.21.0"
+    ports:
+      - "9443:9443"
+      - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /mnt-apps/portainer-server/data:/data
+    restart_policy: always
+    recreate: false
+  when: not portainer_server_info.exists
+
+# ต้องรอ container พร้อมรับ request ก่อนเรียก API ต่อ
+- name: Wait for Portainer Server API to be ready
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/system/status"
+    validate_certs: false
+    status_code: 200
+  register: portainer_status
+  until: portainer_status.status == 200
+  retries: 15
+  delay: 5
+
+# Portainer เพิ่งลงใหม่ (ยังไม่เคยตั้ง admin) จะ init ได้สำเร็จ
+# ถ้าเคย init ไปแล้ว (รันซ้ำ) endpoint นี้จะ error — ปล่อยผ่านด้วย failed_when: false
+- name: Initialize Portainer admin account (first boot only)
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/users/admin/init"
+    method: POST
+    validate_certs: false
+    body_format: json
+    body:
+      Username: "admin"
+      Password: "{{ portainer_admin_password }}"
+    status_code: [200, 409]
+  register: portainer_admin_init
+  failed_when: false
+
+- name: Authenticate to Portainer to get JWT
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/auth"
+    method: POST
+    validate_certs: false
+    body_format: json
+    body:
+      username: "admin"
+      password: "{{ portainer_admin_password }}"
+    status_code: 200
+  register: portainer_auth
+
+# Portainer โชว์ raw token ให้เห็นแค่ตอนสร้างครั้งเดียวเท่านั้น (ดูค่าเก่าซ้ำไม่ได้)
+# เลยไม่เช็คว่ามี token เก่าไหม — สร้างใหม่ทุกรอบที่รัน แล้วลบตัวเก่าทิ้งกันสะสม
+- name: List existing tokens to clean up old ones from previous runs
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/users/1/tokens"
+    method: GET
+    validate_certs: false
+    headers:
+      Authorization: "Bearer {{ portainer_auth.json.jwt }}"
+    status_code: 200
+  register: portainer_existing_tokens
+
+- name: Remove old ansible-provisioning tokens
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/users/1/tokens/{{ item.id }}"
+    method: DELETE
+    validate_certs: false
+    headers:
+      Authorization: "Bearer {{ portainer_auth.json.jwt }}"
+    status_code: 204
+  loop: "{{ portainer_existing_tokens.json | selectattr('description', 'equalto', 'ansible-provisioning') | list }}"
+  loop_control:
+    label: "{{ item.description }}"
+
+- name: Create a fresh API access token for this run
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/users/1/tokens"
+    method: POST
+    validate_certs: false
+    headers:
+      Authorization: "Bearer {{ portainer_auth.json.jwt }}"
+    body_format: json
+    body:
+      description: "ansible-provisioning"
+    status_code: 200
+  register: portainer_new_token
+
+# เก็บ token ไว้เป็น fact ให้ role portainer_agent (รันถัดไปในเพลย์เดียวกัน) เอาไปใช้ต่อ
+- name: Set fact for local Portainer API token
+  ansible.builtin.set_fact:
+    portainer_local_token: "{{ portainer_new_token.json.rawAPIKey }}"
