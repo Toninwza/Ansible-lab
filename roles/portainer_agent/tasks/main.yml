@@ -35,7 +35,10 @@
     body_format: form-urlencoded
     body:
       Name: "{{ inventory_hostname }}"
-      EndpointCreationType: 1
+      EndpointCreationType: 2
       URL: "tcp://localhost:9001"
+      TLS: "true"                       # ← เพิ่ม (Agent ใช้ TLS)
+      TLSSkipVerify: "true"             # ← เพิ่ม (self-signed cert เหมือนที่ Server เอง)
+      TLSSkipClientVerify: "true" 
     status_code: [200, 201, 202, 204]
   when: portainer_existing_endpoints.json | selectattr('Name', 'equalto', inventory_hostname) | list | length == 0
