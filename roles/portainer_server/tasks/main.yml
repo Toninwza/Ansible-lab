@@ -43,7 +43,7 @@
   ansible.builtin.uri:
     url: "https://localhost:9443/api/system/status"
     validate_certs: false
-    status_code: 200
+    status_code: [200, 201, 202, 204]
   register: portainer_status
   until: portainer_status.status == 200
   retries: 15
@@ -60,7 +60,7 @@
     body:
       username: "admin"
       password: "{{ lookup('env', 'portainer_admin_password') }}"
-    status_code: 200
+    status_code: [200, 201, 202, 204]
   register: portainer_auth
 #  no_log: true
 
@@ -73,7 +73,7 @@
     validate_certs: false
     headers:
       Authorization: "Bearer {{ portainer_auth.json.jwt }}"
-    status_code: 200
+    status_code: [200, 201, 202, 204]
   register: portainer_existing_tokens
 
 - name: Remove old ansible-provisioning tokens
@@ -83,7 +83,7 @@
     validate_certs: false
     headers:
       Authorization: "Bearer {{ portainer_auth.json.jwt }}"
-    status_code: 204
+    status_code: [200, 201, 202, 204]
   loop: "{{ portainer_existing_tokens.json | selectattr('description', 'equalto', 'ansible-provisioning') | list }}"
   loop_control:
     label: "{{ item.description }}"
@@ -99,7 +99,7 @@
     body:
       description: "ansible-provisioning"
       password: "{{ lookup('env', 'portainer_admin_password') }}"
-    status_code: 200
+    status_code: [200, 201, 202, 204]
   register: portainer_new_token
 #  no_log: true
 
