@@ -13,7 +13,7 @@
     content: "{{ lookup('env', 'portainer_admin_password') }}"
     dest: /mnt-apps/portainer-server/admin_password
     mode: '0600'
-  no_log: true
+#  no_log: true
 
 # Idempotency: เช็คก่อนว่ามี container ชื่อนี้อยู่แล้วหรือยัง ถ้ามีข้ามการสร้างใหม่
 - name: Check if Portainer Server container already exists
@@ -62,7 +62,7 @@
       password: "{{ lookup('env', 'portainer_admin_password') }}"
     status_code: 200
   register: portainer_auth
-  no_log: true
+#  no_log: true
 
 # Portainer โชว์ raw token ให้เห็นแค่ตอนสร้างครั้งเดียวเท่านั้น (ดูค่าเก่าซ้ำไม่ได้)
 # เลยไม่เช็คว่ามี token เก่าไหม — สร้างใหม่ทุกรอบที่รัน แล้วลบตัวเก่าทิ้งกันสะสม
@@ -101,10 +101,10 @@
       password: "{{ lookup('env', 'portainer_admin_password') }}"
     status_code: 200
   register: portainer_new_token
-  no_log: true
+#  no_log: true
 
 # เก็บ token ไว้เป็น fact ให้ role portainer_agent (รันถัดไปในเพลย์เดียวกัน) เอาไปใช้ต่อ
 - name: Set fact for local Portainer API token
   ansible.builtin.set_fact:
     portainer_local_token: "{{ portainer_new_token.json.rawAPIKey }}"
-  no_log: true
+#  no_log: true
