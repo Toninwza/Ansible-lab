@@ -36,7 +36,7 @@
     body:
       Name: "{{ inventory_hostname }}"
       EndpointCreationType: 2
-      URL: "tcp://{{ inventory_hostname }}:9001"
+      URL: "tcp://{{ ansible_default_ipv4.address }}:9001
       TLS: "true"                       # ← เพิ่ม (Agent ใช้ TLS)
       TLSSkipVerify: "true"             # ← เพิ่ม (self-signed cert เหมือนที่ Server เอง)
       TLSSkipClientVerify: "true" 
