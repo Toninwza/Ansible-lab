@@ -47,7 +47,7 @@
     body_format: json
     body:
       Username: "admin"
-      Password: "{{ portainer_admin_password }}"
+      Password: "{{ lookup('env', 'portainer_admin_password') }}"
     status_code: [200, 409]
   register: portainer_admin_init
   failed_when: false
@@ -60,7 +60,7 @@
     body_format: json
     body:
       username: "admin"
-      password: "{{ portainer_admin_password }}"
+      password: "{{ lookup('env', 'portainer_admin_password') }}"
     status_code: 200
   register: portainer_auth
 
