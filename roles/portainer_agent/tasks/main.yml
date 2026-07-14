@@ -21,7 +21,7 @@
     method: GET
     validate_certs: false
     headers:
-      Authorization: "X-API-Key {{ portainer_local_token }}"
+      X-API-Key: "{{ portainer_local_token }}"
     status_code: [200, 201, 202, 204]
   register: portainer_existing_endpoints
 
@@ -31,7 +31,7 @@
     method: POST
     validate_certs: false
     headers:
-      Authorization: "X-API-Key {{ portainer_local_token }}"
+      X-API-Key: "{{ portainer_local_token }}"
     body_format: form-urlencoded
     body:
       Name: "{{ inventory_hostname }}"
