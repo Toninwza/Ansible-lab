@@ -5,6 +5,16 @@
     state: directory
     mode: '0755'
 
+# Portainer เวอร์ชันปัจจุบัน (2.39.4/2.43+) บังคับใช้ setup_token ตอน boot ครั้งแรก
+# (ต้องไปหยิบจาก docker logs ภายใน 5 นาที) — automation หลีกเลี่ยงขั้นตอนนี้ได้
+# โดยตั้งรหัส admin ล่วงหน้าผ่าน --admin-password-file แทน ซึ่งจะข้าม setup_token ไปเลย
+- name: Write admin password to a local file for the container to read
+  ansible.builtin.copy:
+    content: "{{ lookup('env', 'portainer_admin_password') }}"
+    dest: /mnt-apps/portainer-server/admin_password
+    mode: '0600'
+  no_log: true
+
 # Idempotency: เช็คก่อนว่ามี container ชื่อนี้อยู่แล้วหรือยัง ถ้ามีข้ามการสร้างใหม่
 - name: Check if Portainer Server container already exists
   community.docker.docker_container_info:
@@ -15,13 +25,15 @@
 - name: Run Portainer Server container
   community.docker.docker_container:
     name: portainer_server
-    image: "portainer/portainer-ce:2.21.0"
+    image: "portainer/portainer-ce:latest"
+    command: "--admin-password-file /run/secrets/admin_password"
     ports:
       - "9443:9443"
       - "8000:8000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /mnt-apps/portainer-server/data:/data
+      - /mnt-apps/portainer-server/admin_password:/run/secrets/admin_password:ro
     restart_policy: always
     recreate: false
   when: not portainer_server_info.exists
@@ -37,21 +49,8 @@
   retries: 15
   delay: 5
 
-# Portainer เพิ่งลงใหม่ (ยังไม่เคยตั้ง admin) จะ init ได้สำเร็จ
-# ถ้าเคย init ไปแล้ว (รันซ้ำ) endpoint นี้จะ error — ปล่อยผ่านด้วย failed_when: false
-- name: Initialize Portainer admin account (first boot only)
-  ansible.builtin.uri:
-    url: "https://localhost:9443/api/users/admin/init"
-    method: POST
-    validate_certs: false
-    body_format: json
-    body:
-      Username: "admin"
-      Password: "{{ lookup('env', 'portainer_admin_password') }}"
-    status_code: [200, 409]
-  register: portainer_admin_init
-  failed_when: false
-
+# ไม่ต้องมี task "Initialize admin account" อีกต่อไป — --admin-password-file
+# ตั้ง admin ให้เสร็จตั้งแต่ boot แล้ว ไม่ผ่านหน้าเว็บ ไม่ต้องใช้ setup_token
 - name: Authenticate to Portainer to get JWT
   ansible.builtin.uri:
     url: "https://localhost:9443/api/auth"
@@ -63,6 +62,7 @@
       password: "{{ lookup('env', 'portainer_admin_password') }}"
     status_code: 200
   register: portainer_auth
+  no_log: true
 
 # Portainer โชว์ raw token ให้เห็นแค่ตอนสร้างครั้งเดียวเท่านั้น (ดูค่าเก่าซ้ำไม่ได้)
 # เลยไม่เช็คว่ามี token เก่าไหม — สร้างใหม่ทุกรอบที่รัน แล้วลบตัวเก่าทิ้งกันสะสม
@@ -98,10 +98,13 @@
     body_format: json
     body:
       description: "ansible-provisioning"
+      password: "{{ lookup('env', 'portainer_admin_password') }}"
     status_code: 200
   register: portainer_new_token
+  no_log: true
 
 # เก็บ token ไว้เป็น fact ให้ role portainer_agent (รันถัดไปในเพลย์เดียวกัน) เอาไปใช้ต่อ
 - name: Set fact for local Portainer API token
   ansible.builtin.set_fact:
     portainer_local_token: "{{ portainer_new_token.json.rawAPIKey }}"
+  no_log: true
