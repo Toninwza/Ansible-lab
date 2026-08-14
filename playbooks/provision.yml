@@ -1,4 +1,5 @@
 ---
+# สำหรับในอนาคตที่จะลง Add-ons อย่างอื่นด้วย(sandbox)
 - name: Register target host
   hosts: localhost
   gather_facts: false
@@ -12,7 +13,7 @@
   hosts: all:!localhost
   become: true
   vars:
-    ansible_user: ubuntu
+    ansible_user: "{{ target_user | default('ubuntu') }}"
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
   roles:
     - role: docker_engine
