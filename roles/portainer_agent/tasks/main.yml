@@ -37,8 +37,15 @@
       Name: "{{ inventory_hostname }}"
       EndpointCreationType: 2
       URL: "tcp://{{ ansible_default_ipv4.address }}:9001"
-      TLS: "true"                       # ← เพิ่ม (Agent ใช้ TLS)
-      TLSSkipVerify: "true"             # ← เพิ่ม (self-signed cert เหมือนที่ Server เอง)
-      TLSSkipClientVerify: "true" 
+      TLS: "true"
+      TLSSkipVerify: "true"
+      TLSSkipClientVerify: "true"
     status_code: [200, 201, 202, 204]
+  when: portainer_existing_endpoints.json | selectattr('Name', 'equalto', inventory_hostname) | list | length == 0
+  register: portainer_register_result
+  no_log: true
+
+- name: Log ผลลัพธ์การ register (ไม่มี secret ปน)
+  ansible.builtin.debug:
+    msg: "Registered {{ inventory_hostname }} to Portainer — status: {{ portainer_register_result.status | default('skipped') }}"
   when: portainer_existing_endpoints.json | selectattr('Name', 'equalto', inventory_hostname) | list | length == 0
