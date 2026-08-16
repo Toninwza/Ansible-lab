@@ -11,10 +11,10 @@
     restart_policy: always
     recreate: false
 
-# ตรงตาม Step to Install New Server.txt ข้อ 5:
+# Per Step to Install New Server.txt, item 5:
 # "Add Environment to Portainer Host in each environment"
-# Server อยู่เครื่องเดียวกับ Agent แล้ว (localhost) เลยไม่ต้อง delegate_to
-# ใช้ token ที่ role portainer_server สร้างไว้ให้ผ่าน portainer_local_token
+# Server runs on the same host as the Agent (localhost), so no delegate_to needed
+# Uses the token created by the portainer_server role via portainer_local_token
 - name: Check if this host is already registered as an environment
   ansible.builtin.uri:
     url: "https://localhost:9443/api/endpoints"
@@ -24,6 +24,11 @@
       X-API-Key: "{{ portainer_local_token }}"
     status_code: [200, 201, 202, 204]
   register: portainer_existing_endpoints
+  no_log: true
+
+- name: Log endpoint check result (no secret included)
+  ansible.builtin.debug:
+    msg: "Existing endpoint check for {{ inventory_hostname }} — status: {{ portainer_existing_endpoints.status | default('failed') }}"
 
 - name: Register this host to its local Portainer Server
   ansible.builtin.uri:
@@ -45,7 +50,7 @@
   register: portainer_register_result
   no_log: true
 
-- name: Log ผลลัพธ์การ register (ไม่มี secret ปน)
+- name: Log registration result (no secret included)
   ansible.builtin.debug:
     msg: "Registered {{ inventory_hostname }} to Portainer — status: {{ portainer_register_result.status | default('skipped') }}"
   when: portainer_existing_endpoints.json | selectattr('Name', 'equalto', inventory_hostname) | list | length == 0
