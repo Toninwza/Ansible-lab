@@ -2,7 +2,7 @@
 - name: Run Portainer Agent container
   community.docker.docker_container:
     name: portainer_agent
-    image: "portainer/agent:2.21.1"
+    image: "portainer/agent:2.21.0"
     ports:
       - "9001:9001"
     volumes:
@@ -10,3 +10,47 @@
       - /var/lib/docker/volumes:/var/lib/docker/volumes
     restart_policy: always
     recreate: false
+
+# Per Step to Install New Server.txt, item 5:
+# "Add Environment to Portainer Host in each environment"
+# Server runs on the same host as the Agent (localhost), so no delegate_to needed
+# Uses the token created by the portainer_server role via portainer_local_token
+- name: Check if this host is already registered as an environment
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/endpoints"
+    method: GET
+    validate_certs: false
+    headers:
+      X-API-Key: "{{ portainer_local_token }}"
+    status_code: [200, 201, 202, 204]
+  register: portainer_existing_endpoints
+  no_log: true
+
+- name: Log endpoint check result (no secret included)
+  ansible.builtin.debug:
+    msg: "Existing endpoint check for {{ inventory_hostname }} — status: {{ portainer_existing_endpoints.status | default('failed') }}"
+
+- name: Register this host to its local Portainer Server
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/endpoints"
+    method: POST
+    validate_certs: false
+    headers:
+      X-API-Key: "{{ portainer_local_token }}"
+    body_format: form-urlencoded
+    body:
+      Name: "{{ inventory_hostname }}"
+      EndpointCreationType: 2
+      URL: "tcp://{{ ansible_default_ipv4.address }}:9001"
+      TLS: "true"
+      TLSSkipVerify: "true"
+      TLSSkipClientVerify: "true"
+    status_code: [200, 201, 202, 204]
+  when: portainer_existing_endpoints.json | selectattr('Name', 'equalto', inventory_hostname) | list | length == 0
+  register: portainer_register_result
+  no_log: true
+
+- name: Log registration result (no secret included)
+  ansible.builtin.debug:
+    msg: "Registered {{ inventory_hostname }} to Portainer — status: {{ portainer_register_result.status | default('skipped') }}"
+  when: portainer_existing_endpoints.json | selectattr('Name', 'equalto', inventory_hostname) | list | length == 0
