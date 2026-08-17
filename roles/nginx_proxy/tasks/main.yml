@@ -6,8 +6,8 @@
     state: directory
     mode: '0755'
   loop:
-    - /opt/supalai-nginx/nginx
-    - /opt/supalai-nginx/vhost.d
+    - /mnt-apps/nginx-proxy/nginx
+    - /mnt-apps/nginx-proxy/vhost.d
     - /var/log/nginx/reverse-proxy
     - /etc/ssl/supalai_cert
 
@@ -24,7 +24,7 @@
 - name: Copy Nginx config files
   ansible.builtin.copy:
     src: "nginx/{{ item }}"
-    dest: "/opt/supalai-nginx/nginx/{{ item }}"
+    dest: "/mnt-apps/nginx-proxy/nginx/{{ item }}"
     mode: '0644'
   loop:
     - proxy.conf
@@ -34,7 +34,7 @@
 # - name: Copy vhost.d configurations
 #   ansible.builtin.copy:
 #     src: "vhost.d/"
-#     dest: /opt/supalai-nginx/vhost.d/
+#     dest: /mnt-apps/nginx-proxy/vhost.d/
 #     mode: '0644'
 #   when: lookup('fileglob', role_path + '/files/vhost.d/*') | length > 0
 
@@ -50,12 +50,14 @@
     ports:
       - "82:82"
       - "80:80"
+      - "443:443"
     volumes:
       - /var/run/docker.sock:/tmp/docker.sock:ro
-      - /opt/supalai-nginx/nginx/proxy.conf:/etc/nginx/proxy.conf
-      - /opt/supalai-nginx/nginx/proxy-wide.conf:/etc/nginx/conf.d/my_proxy.conf:ro
+      - /mnt-apps/nginx-proxy/nginx/proxy.conf:/etc/nginx/proxy.conf
+      - /mnt-apps/nginx-proxy/nginx/proxy-wide.conf:/etc/nginx/conf.d/my_proxy.conf:ro
       - /var/log/nginx/reverse-proxy:/var/log/nginx
-      - /opt/supalai-nginx/vhost.d:/etc/nginx/vhost.d:ro
+      - /mnt-apps/nginx-proxy/vhost.d:/etc/nginx/vhost.d:ro
+      - /etc/ssl/supalai_cert:/etc/nginx/certs:ro
     env:
       TZ: "Asia/Bangkok"
       ENABLE_IPV6: "true"

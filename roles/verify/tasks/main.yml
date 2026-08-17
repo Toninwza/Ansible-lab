@@ -18,3 +18,22 @@
   register: pa_info
   failed_when: not pa_info.exists or pa_info.container.State.Status != "running"
   when: install_portainer_agent | bool
+
+- name: Check Node.js is accessible via NVM
+  ansible.builtin.shell: |
+    source ~/.nvm/nvm.sh && node --version
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ nvm_user | default('ubuntu') }}"
+  register: node_version
+  failed_when: node_version.rc != 0
+  changed_when: false
+  when: install_nvm | bool
+
+- name: Check .NET SDK is installed
+  ansible.builtin.command: dotnet --version
+  register: dotnet_check
+  failed_when: dotnet_check.rc != 0
+  changed_when: false
+  when: install_dotnet | bool

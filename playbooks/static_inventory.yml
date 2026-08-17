@@ -1,4 +1,5 @@
 ---
+# For Static Inventory 
 - name: On-demand server provisioning
   hosts: all
   become: true
@@ -9,6 +10,9 @@
 
     - role: nginx_proxy
       when: install_nginx_proxy | bool
+
+    - role: portainer_server
+      when: install_portainer_server | bool
 
     - role: portainer_agent
       when: install_portainer_agent | bool
