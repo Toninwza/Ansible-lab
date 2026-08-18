@@ -28,6 +28,7 @@
         msg: "Docker is required for the requested services but is not installed on this host. Set install_docker=true or confirm Docker is already installed."
       when:
         - not docker_check.stat.exists
+        - not install_docker | bool
         - install_nginx_proxy | bool or install_portainer_server | bool or install_portainer_agent | bool
   roles:
     - role: docker_engine
