@@ -43,10 +43,10 @@
     - role: portainer_agent
       when: install_portainer_agent | bool
       
-    - role : install_nvm
+    - role : nvm
       when: install_nvm | bool
 
-    - role : install_dotnet
+    - role : dotnet
       when: install_dotnet | bool
 
     - role: verify
@@ -54,4 +54,6 @@
         install_docker | bool or
         install_nginx_proxy | bool or
         install_portainer_server | bool or
-        install_portainer_agent | bool
+        install_portainer_agent | bool or
+        install_nvm | bool or
+        install_dotnet | bool
