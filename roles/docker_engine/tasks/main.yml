@@ -1,4 +1,33 @@
 ---
+- name: Check if Docker was previously installed on this host
+  ansible.builtin.stat:
+    path: /usr/bin/docker
+  register: docker_binary_check
+
+- name: Check for running containers if Docker already exists
+  community.docker.docker_host_info:
+    containers: true
+  register: existing_containers
+  when: docker_binary_check.stat.exists
+  ignore_errors: true
+
+- name: Filter out containers not created by Ansible
+  ansible.builtin.set_fact:
+    unknown_containers: "{{ existing_containers.containers | default([]) | rejectattr('Names', 'search', 'portainer_(server|agent)') | list }}"
+  when: docker_binary_check.stat.exists
+
+- name: Stop if this host already has other workloads and override was not confirmed
+  ansible.builtin.fail:
+    msg: >
+      This host ({{ inventory_hostname }}) already has Docker installed
+      {% if unknown_containers is defined and unknown_containers | length > 0 %}
+      and {{ unknown_containers | length }} container(s) not created by Ansible were found
+      {% endif %}
+      — if this is intentional, pass target_confirm_docker_overwrite=true.
+  when:
+    - docker_binary_check.stat.exists
+    - target_confirm_docker_overwrite | default(false) | bool == false
+
 - name: Clean old docker repo files
   ansible.builtin.file:
     path: "{{ item }}"
