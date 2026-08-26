@@ -12,18 +12,16 @@
     - /etc/ssl/supalai_cert
 
 # TODO: cert จะถือโดยคนอื่น รอ task แยกมาทีหลัง
-# - name: Copy SSL certificates
-#   ansible.builtin.copy:
-#     src: "{{ playbook_dir }}/files/certs/{{ item }}"
-#     dest: "/etc/ssl/supalai_cert/{{ item }}"
-#     mode: '0600'
-#   loop:
-#     - supalai.com.crt
-#     - supalai.com.key
+- name: Copy SSL certificates
+  ansible.builtin.copy:
+    src: "{{ nginx_proxy_cert_src_dir }}/{{ item }}"   # อ่านจากเครื่องที่รัน playbook
+    dest: "{{ nginx_proxy_cert_dir }}/{{ item }}"       # ไปวางที่ target host
+    mode: '0644'
+  loop: "{{ nginx_proxy_cert_files }}"
 
 - name: Copy Nginx config files
   ansible.builtin.copy:
-    src: "nginx/{{ item }}"
+    src: "{{ nginx_proxy_config_src_dir }}/nginx/{{ item }}"
     dest: "/mnt-apps/nginx-proxy/nginx/{{ item }}"
     mode: '0644'
   loop:
@@ -31,41 +29,29 @@
     - proxy-wide.conf
 
 # TODO: vhost.d ยังไม่ใช้ตอนนี้
-# - name: Copy vhost.d configurations
-#   ansible.builtin.copy:
-#     src: "vhost.d/"
-#     dest: /mnt-apps/nginx-proxy/vhost.d/
-#     mode: '0644'
-#   when: lookup('fileglob', role_path + '/files/vhost.d/*') | length > 0
+- name: Copy vhost.d configurations
+  ansible.builtin.copy:
+    src: "{{ nginx_proxy_config_src_dir }}/vhost.d/{{ item }}"
+    dest: "/mnt-apps/nginx-proxy/vhost.d/{{ item }}"
+    mode: '0644'
+  when: lookup('fileglob', role_path + '/files/vhost.d/*') | length > 0
 
 - name: Create Docker network nginx_proxy
   community.docker.docker_network:
     name: "nginx_proxy"
     state: present
 
-- name: Run Nginx Proxy container
-  community.docker.docker_container:
-    name: nginx-proxy
-    image: "nginxproxy/nginx-proxy:1.7"
-    ports:
-      - "82:82"
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/tmp/docker.sock:ro
-      - /mnt-apps/nginx-proxy/nginx/proxy.conf:/etc/nginx/proxy.conf
-      - /mnt-apps/nginx-proxy/nginx/proxy-wide.conf:/etc/nginx/conf.d/my_proxy.conf:ro
-      - /var/log/nginx/reverse-proxy:/var/log/nginx
-      - /mnt-apps/nginx-proxy/vhost.d:/etc/nginx/vhost.d:ro
-      - /etc/ssl/supalai_cert:/etc/nginx/certs:ro
-    env:
-      TZ: "Asia/Bangkok"
-      ENABLE_IPV6: "true"
-    networks:
-      - name: "nginx_proxy"
-    restart_policy: always
-    recreate: false
+- name: Deploy Nginx Proxy compose file
+  ansible.builtin.copy:
+    src: "{{ nginx_proxy_config_src_dir }}/compose.yaml"
+    dest: /mnt-apps/nginx-proxy/compose.yaml
+    mode: '0644'
 
+- name: Run Nginx Proxy via docker compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ nginx_proxy_config_src_dir }}/compose.yaml"
+    state: present
+    
 - name: Create logrotate config for nginx
   ansible.builtin.copy:
     content: |

@@ -3,6 +3,7 @@
 - name: On-demand server provisioning
   hosts: all
   become: true
+  gather_facts: false
 
   roles:
     - role: docker_engine

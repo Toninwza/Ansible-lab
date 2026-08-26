@@ -44,10 +44,10 @@
       when: install_portainer_agent | bool
       
     - role : nvm
-      when: install_nvm | bool
+      when: install_nvm | default(false) | bool
 
     - role : dotnet
-      when: install_dotnet | bool
+      when: install_dotnet | default(false) | bool
 
     - role: verify
       when: >
