@@ -7,7 +7,7 @@
 
   roles:
     - role: docker_engine
-      when: install_docker | bool or install_nginx_proxy | bool or install_portainer_agent | bool
+      when: install_docker | bool
 
     - role: nginx_proxy
       when: install_nginx_proxy | bool
