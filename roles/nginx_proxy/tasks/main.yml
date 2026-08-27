@@ -46,10 +46,10 @@
     dest: "{{ nginx_proxy_dest_dir }}/{{ nginx_proxy_compose_file }}"
     mode: '0644'
 
-- name: Run Nginx Proxy via docker compose
-  community.docker.docker_compose_v2:
-    project_src: "{{ nginx_proxy_dest_dir }}"
-    state: present
+##- name: Run Nginx Proxy via docker compose
+#  community.docker.docker_compose_v2:
+#    project_src: "{{ nginx_proxy_dest_dir }}"
+#    state: present
 
 - name: Create logrotate config for nginx
   ansible.builtin.copy:
