@@ -1,23 +1,10 @@
 ---
-- name: Create Portainer Server data directory
-  ansible.builtin.file:
-    path: /mnt-apps/portainer-server/data
-    state: directory
-    mode: '0755'
-
-# Current Portainer versions (2.21.0) enforce a setup_token on first boot
-# (must be grabbed from docker logs within 5 minutes) — automation avoids this step
-# by pre-setting the admin password via --admin-password-file instead, which skips setup_token entirely
-- name: Write admin password to a local file for the container to read
-  ansible.builtin.copy:
-    content: "{{ lookup('env', 'portainer_admin_password') }}"
-    dest: /mnt-apps/portainer-server/admin_password
-    mode: '0600'
-  no_log: true
-
-- name: Log admin password write result (no secret included)
-  ansible.builtin.debug:
-    msg: "Admin password file written to /mnt-apps/portainer-server/admin_password"
+# Matches guide book step: `docker volume create portainer_data`
+# Using a real named Docker volume instead of a bind-mount path, so the
+# server role no longer depends on /mnt-apps for its data storage.
+- name: Create Portainer data volume
+  community.docker.docker_volume:
+    name: portainer_data
 
 # Idempotency: check if a container with this name already exists, skip creation if so
 - name: Check if Portainer Server container already exists
@@ -26,18 +13,20 @@
   register: portainer_server_info
   failed_when: false
 
+# Bumped to :lts (2.39.x+) specifically to get --no-setup-token support, which lets
+# us skip the ephemeral setup_token flow entirely on a trusted private network and
+# create the admin account via a normal API call instead of a password file on disk.
 - name: Run Portainer Server container
   community.docker.docker_container:
     name: portainer_server
-    image: "portainer/portainer-ce:2.21.4"
-    command: "--admin-password-file /run/secrets/admin_password"
+    image: "portainer/portainer-ce:lts"
+    command: "--no-setup-token"
     ports:
       - "9443:9443"
       - "8000:8000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /mnt-apps/portainer-server/data:/data
-      - /mnt-apps/portainer-server/admin_password:/run/secrets/admin_password:ro
+      - portainer_data:/data
     restart_policy: always
     recreate: false
   when: not portainer_server_info.exists
@@ -53,8 +42,42 @@
   retries: 15
   delay: 5
 
-# No "Initialize admin account" task needed anymore — --admin-password-file
-# sets the admin account at boot already, no web UI, no setup_token needed
+# Public, unauthenticated endpoint Portainer's own web UI uses to decide whether to
+# show the "create admin" wizard or the login page: 404 = no admin yet, 204 = admin exists.
+- name: Check if admin account already exists
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/users/admin/check"
+    method: GET
+    validate_certs: false
+    status_code: [204, 404]
+  register: portainer_admin_check
+
+- name: Log admin check result
+  ansible.builtin.debug:
+    msg: "Admin account check for {{ inventory_hostname }} — status: {{ portainer_admin_check.status }} ({{ 'already exists' if portainer_admin_check.status == 204 else 'not created yet' }})"
+
+# This is the same endpoint the browser's first-time setup form submits to —
+# password goes over HTTPS in the request body only, never touches disk.
+# Only reachable while no admin exists yet (that's what --no-setup-token opened up
+# without needing to scrape the setup_token out of docker logs within 5 minutes).
+- name: Initialize Portainer admin account via API
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/users/admin/init"
+    method: POST
+    validate_certs: false
+    body_format: json
+    body:
+      Username: "admin"
+      Password: "{{ lookup('env', 'portainer_admin_password') }}"
+    status_code: [200, 201, 202, 204]
+  when: portainer_admin_check.status == 404
+  no_log: true
+
+- name: Log admin init result (no secret included)
+  ansible.builtin.debug:
+    msg: "Admin account created for {{ inventory_hostname }}"
+  when: portainer_admin_check.status == 404
+
 - name: Authenticate to Portainer to get JWT
   ansible.builtin.uri:
     url: "https://localhost:9443/api/auth"
