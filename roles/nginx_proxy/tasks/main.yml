@@ -6,12 +6,12 @@
     state: directory
     mode: '0755'
   loop:
-    - /mnt-apps/nginx-proxy/nginx
-    - /mnt-apps/nginx-proxy/vhost.d
+    - "{{ nginx_proxy_dest_dir }}/nginx"
+    - "{{ nginx_proxy_dest_dir }}/vhost.d"
     - /var/log/nginx/reverse-proxy
-    - /etc/ssl/supalai_cert
+    - "{{ nginx_proxy_cert_dir }}"
 
-# TODO: cert จะถือโดยคนอื่น รอ task แยกมาทีหลัง
+# TODO: cert จะถือโดยคนอื่น รอ task แยกมาทีหลัง (ถ้า nginx_proxy_cert_src_dir มีไฟล์จริงแล้ว task นี้ใช้งานได้เลย)
 - name: Copy SSL certificates
   ansible.builtin.copy:
     src: "{{ nginx_proxy_cert_src_dir }}/{{ item }}"   # อ่านจากเครื่องที่รัน playbook
@@ -22,19 +22,18 @@
 - name: Copy Nginx config files
   ansible.builtin.copy:
     src: "{{ nginx_proxy_config_src_dir }}/nginx/{{ item }}"
-    dest: "/mnt-apps/nginx-proxy/nginx/{{ item }}"
+    dest: "{{ nginx_proxy_dest_dir }}/nginx/{{ item }}"
     mode: '0644'
   loop:
     - proxy.conf
     - proxy-wide.conf
 
-# TODO: vhost.d ยังไม่ใช้ตอนนี้
 - name: Copy vhost.d configurations
   ansible.builtin.copy:
-    src: "{{ nginx_proxy_config_src_dir }}/vhost.d/{{ item }}"
-    dest: "/mnt-apps/nginx-proxy/vhost.d/{{ item }}"
+    src: "{{ item }}"
+    dest: "{{ nginx_proxy_dest_dir }}/vhost.d/{{ item | basename }}"
     mode: '0644'
-  when: lookup('fileglob', role_path + '/files/vhost.d/*') | length > 0
+  loop: "{{ lookup('fileglob', nginx_proxy_config_src_dir + '/vhost.d/*', wantlist=True) }}"
 
 - name: Create Docker network nginx_proxy
   community.docker.docker_network:
@@ -43,15 +42,15 @@
 
 - name: Deploy Nginx Proxy compose file
   ansible.builtin.copy:
-    src: "{{ nginx_proxy_config_src_dir }}/compose.yaml"
-    dest: /mnt-apps/nginx-proxy/compose.yaml
+    src: "{{ nginx_proxy_config_src_dir }}/{{ nginx_proxy_compose_file }}"
+    dest: "{{ nginx_proxy_dest_dir }}/{{ nginx_proxy_compose_file }}"
     mode: '0644'
 
 - name: Run Nginx Proxy via docker compose
   community.docker.docker_compose_v2:
-    project_src: "{{ nginx_proxy_config_src_dir }}/compose.yaml"
+    project_src: "{{ nginx_proxy_dest_dir }}"
     state: present
-    
+
 - name: Create logrotate config for nginx
   ansible.builtin.copy:
     content: |
