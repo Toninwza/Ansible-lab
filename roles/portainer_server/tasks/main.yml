@@ -71,7 +71,7 @@
       Password: "{{ lookup('env', 'portainer_admin_password') }}"
     status_code: [200, 201, 202, 204]
   when: portainer_admin_check.status == 404
-  no_log: true
+  #no_log: true
 
 - name: Log admin init result (no secret included)
   ansible.builtin.debug:
@@ -89,7 +89,7 @@
       password: "{{ lookup('env', 'portainer_admin_password') }}"
     status_code: [200, 201, 202, 204]
   register: portainer_auth
-  no_log: true
+  #no_log: true
 
 - name: Log authenticate result (no secret included)
   ansible.builtin.debug:
@@ -106,7 +106,7 @@
       Authorization: "Bearer {{ portainer_auth.json.jwt }}"
     status_code: [200, 201, 202, 204]
   register: portainer_existing_tokens
-  no_log: true
+  #no_log: true
 
 - name: Remove old ansible-provisioning tokens
   ansible.builtin.uri:
@@ -119,7 +119,7 @@
   loop: "{{ portainer_existing_tokens.json | selectattr('description', 'equalto', 'ansible-provisioning') | list }}"
   loop_control:
     label: "{{ item.description }}"
-  no_log: true
+  #no_log: true
 
 - name: Log number of old tokens removed (no secret included)
   ansible.builtin.debug:
@@ -138,13 +138,13 @@
       password: "{{ lookup('env', 'portainer_admin_password') }}"
     status_code: [200, 201, 202, 204]
   register: portainer_new_token
-  no_log: true
+  #no_log: true
 
 # Store the token as a fact for the portainer_agent role (runs next in the same play) to use
 - name: Set fact for local Portainer API token
   ansible.builtin.set_fact:
     portainer_local_token: "{{ portainer_new_token.json.rawAPIKey }}"
-  no_log: true
+  #no_log: true
 
 - name: Log that a new token was created successfully (no secret included)
   ansible.builtin.debug:
