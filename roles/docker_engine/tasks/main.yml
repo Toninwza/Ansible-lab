@@ -37,6 +37,10 @@
     - /etc/apt/sources.list.d/download_docker_com_linux_ubuntu.list
     - /etc/apt/keyrings/docker.asc
     - /etc/apt/keyrings/docker.gpg
+    - /etc/apt/sources.list.d/docker.sources
+  when: >
+    not docker_binary_check.stat.exists
+    or target_confirm_docker_overwrite | default(false) | bool
 
 - name: Install prerequisite packages
   ansible.builtin.apt:
@@ -77,7 +81,7 @@
     path: /etc/docker
     state: directory
     mode: '0755'
-    
+
 - name: Configure Docker daemon
   ansible.builtin.copy:
     content: |
@@ -97,6 +101,8 @@
       - docker-ce
       - docker-ce-cli
       - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
     state: present
     update_cache: yes
 
@@ -106,12 +112,20 @@
     state: started
     enabled: yes
 
-- name: Create standard app directories
-  ansible.builtin.file:
+- name: Check if standard app directories already exist
+  ansible.builtin.stat:
     path: "{{ item }}"
-    state: directory
-    mode: '0755'
+  register: app_dir_check
   loop:
     - /mnt-apps
     - /mnt-dbs
 
+- name: Create standard app directories if missing
+  ansible.builtin.file:
+    path: "{{ item.item }}"
+    state: directory
+    mode: '0755'
+  loop: "{{ app_dir_check.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: not item.stat.exists

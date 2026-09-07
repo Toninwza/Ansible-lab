@@ -1,0 +1,48 @@
+---
+- name: Check and fix Portainer Server container
+  hosts: all
+  gather_facts: false
+  become: true
+  become_user: root
+
+  tasks:
+    - name: Check portainer_server container status
+      ansible.builtin.shell: docker ps -a --filter name=portainer_server
+      register: portainer_status
+      changed_when: false
+
+    - name: Show container status
+      ansible.builtin.debug:
+        msg: "{{ portainer_status.stdout_lines }}"
+
+    - name: Start portainer_server container if stopped
+      ansible.builtin.command: docker start portainer_server
+      register: start_result
+      failed_when: false
+      changed_when: true
+
+    - name: Show start result
+      ansible.builtin.debug:
+        msg: "stdout={{ start_result.stdout }} stderr={{ start_result.stderr }}"
+
+    - name: Get portainer_server logs
+      ansible.builtin.shell: docker logs portainer_server --tail 50
+      register: portainer_logs
+      failed_when: false
+      changed_when: false
+
+    - name: Show logs
+      ansible.builtin.debug:
+        msg: "{{ portainer_logs.stdout_lines }}"
+
+    - name: Test Portainer API status right now
+      ansible.builtin.uri:
+        url: "https://localhost:9443/api/system/status"
+        validate_certs: false
+        status_code: [200, 201, 202, 204]
+      register: test_status
+      failed_when: false
+
+    - name: Show test status result
+      ansible.builtin.debug:
+        var: test_status

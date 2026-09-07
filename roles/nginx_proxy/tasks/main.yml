@@ -11,11 +11,10 @@
     - /var/log/nginx/reverse-proxy
     - "{{ nginx_proxy_cert_dir }}"
 
-# TODO: cert จะถือโดยคนอื่น รอ task แยกมาทีหลัง (ถ้า nginx_proxy_cert_src_dir มีไฟล์จริงแล้ว task นี้ใช้งานได้เลย)
 - name: Copy SSL certificates
   ansible.builtin.copy:
-    src: "{{ nginx_proxy_cert_src_dir }}/{{ item }}"   # อ่านจากเครื่องที่รัน playbook
-    dest: "{{ nginx_proxy_cert_dir }}/{{ item }}"       # ไปวางที่ target host
+    src: "{{ nginx_proxy_cert_src_dir }}/{{ item }}"   
+    dest: "{{ nginx_proxy_cert_dir }}/{{ item }}"       
     mode: '0644'
   loop: "{{ nginx_proxy_cert_files }}"
 
@@ -46,10 +45,10 @@
     dest: "{{ nginx_proxy_dest_dir }}/{{ nginx_proxy_compose_file }}"
     mode: '0644'
 
-##- name: Run Nginx Proxy via docker compose
-#  community.docker.docker_compose_v2:
-#    project_src: "{{ nginx_proxy_dest_dir }}"
-#    state: present
+- name: Run Nginx Proxy via docker compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ nginx_proxy_dest_dir }}"
+    state: present
 
 - name: Create logrotate config for nginx
   ansible.builtin.copy:

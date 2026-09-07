@@ -1,0 +1,29 @@
+---
+- name: Test become then apt update in sequence
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Confirm become works (whoami as root)
+      become: true
+      become_user: root 
+      ansible.builtin.command: whoami
+      register: whoami_result
+
+    - name: Show whoami result
+      ansible.builtin.debug:
+        msg: "whoami after become = {{ whoami_result.stdout }}"
+
+    - name: Try apt-get update directly as root
+      become: true
+      become_user: root 
+      ansible.builtin.command: apt-get update
+      register: apt_result
+      ignore_errors: true
+
+    - name: Show apt-get update result
+      ansible.builtin.debug:
+        msg:
+          - "rc = {{ apt_result.rc }}"
+          - "stdout = {{ apt_result.stdout }}"
+          - "stderr = {{ apt_result.stderr }}"

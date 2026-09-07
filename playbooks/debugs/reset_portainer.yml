@@ -1,0 +1,79 @@
+---
+- name: Reset Portainer Server (recover from stuck/failed admin-init)
+  hosts: all
+  gather_facts: false
+  become: true
+  become_user: root
+
+  tasks:
+    - name: Check portainer_server container status
+      ansible.builtin.shell: >
+        docker ps -a --filter name=portainer_server --format '{{ '{{' }}.Status{{ '}}' }}'
+      register: container_status
+      changed_when: false
+      failed_when: false
+
+    - name: Show container status
+      ansible.builtin.debug:
+        msg: "portainer_server status: {{ container_status.stdout | default('not found') }}"
+
+    - name: Check admin account status
+      ansible.builtin.uri:
+        url: "https://localhost:9443/api/users/admin/check"
+        validate_certs: false
+        status_code: [204, 404]
+      register: admin_check
+      failed_when: false
+
+    - name: Check system status
+      ansible.builtin.uri:
+        url: "https://localhost:9443/api/system/status"
+        validate_certs: false
+        status_code: [200, 201, 202, 204, 303]
+      register: system_status
+      failed_when: false
+
+    - name: Decide whether reset is needed
+      ansible.builtin.set_fact:
+        portainer_reset_needed: >-
+          {{ (admin_check.status | default(0)) != 204 }}
+
+    - name: Show decision
+      ansible.builtin.debug:
+        msg: >-
+          reset_needed={{ portainer_reset_needed }}
+          admin_check.status={{ admin_check.status | default('n/a') }}
+          system_status.status={{ system_status.status | default('n/a') }}
+          redirect_reason={{ system_status.redirect_reason | default('n/a') }}
+
+    - name: Refuse to reset — admin account already exists
+      ansible.builtin.fail:
+        msg: >-
+          Portainer admin already initialized (admin/check = 204). Refusing to delete
+          container/volume since real data may exist. Pass -e force_portainer_reset=true
+          if you really intend to wipe it.
+      when:
+        - not portainer_reset_needed
+        - not (force_portainer_reset | default(false) | bool)
+
+    - name: Remove stuck portainer_server container
+      ansible.builtin.command: docker rm -f portainer_server
+      register: rm_result
+      failed_when: false
+      changed_when: "'No such container' not in (rm_result.stderr | default(''))"
+
+    - name: Remove portainer_data volume
+      ansible.builtin.command: docker volume rm portainer_data
+      register: vol_result
+      failed_when: false
+      changed_when: "'No such volume' not in (vol_result.stderr | default(''))"
+
+    - name: Show removal results
+      ansible.builtin.debug:
+        msg: "container: {{ rm_result.stdout }}{{ rm_result.stderr }} | volume: {{ vol_result.stdout }}{{ vol_result.stderr }}"
+
+    - name: Next step reminder
+      ansible.builtin.debug:
+        msg: >-
+          Removed. Now re-run the main template with install_portainer_server=true
+          (portainer_admin_password must be set) to recreate Portainer fresh.

@@ -1,0 +1,58 @@
+---
+- name: Test Ansible Connection and Sudo
+  hosts: all
+  gather_facts: true
+  become: false
+
+  tasks:
+
+    - name: Show SSH connection user
+      ansible.builtin.command: whoami
+      register: ssh_user
+      changed_when: false
+
+    - name: Show SSH user
+      ansible.builtin.debug:
+        msg: "SSH user = {{ ssh_user.stdout }}"
+
+    - name: Show user ID and groups
+      ansible.builtin.command: id
+      register: user_id
+      changed_when: false
+
+    - name: Show user information
+      ansible.builtin.debug:
+        msg: "{{ user_id.stdout }}"
+
+    - name: Check sudo permission
+      ansible.builtin.command: sudo -n -l
+      register: sudo_check
+      changed_when: false
+      failed_when: false
+
+    - name: Show sudo permission result
+      ansible.builtin.debug:
+        msg:
+          - "Sudo return code = {{ sudo_check.rc }}"
+          - "Sudo stdout = {{ sudo_check.stdout }}"
+          - "Sudo stderr = {{ sudo_check.stderr }}"
+
+    - name: Show resolved become-related variables
+      ansible.builtin.debug:
+        msg:
+          - "ansible_become = {{ ansible_become | default('UNDEFINED') }}"
+          - "ansible_become_method = {{ ansible_become_method | default('UNDEFINED') }}"
+          - "ansible_become_user = {{ ansible_become_user | default('UNDEFINED') }}"
+          - "ansible_become_password is defined = {{ ansible_become_password is defined }}"
+          - "ansible_become_pass is defined = {{ ansible_become_pass is defined }}"
+
+    - name: Test become and show root user
+      become: true
+      become_method: sudo
+      become_user: root
+      ansible.builtin.command: whoami
+      register: become_test_result
+
+    - name: Show become user
+      ansible.builtin.debug:
+        msg: "User after become = {{ become_test_result.stdout }}"
