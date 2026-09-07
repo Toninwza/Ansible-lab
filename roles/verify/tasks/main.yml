@@ -7,7 +7,7 @@
 
 - name: Check nginx-proxy container is running
   community.docker.docker_container_info:
-    name: spl-nginx-reverse-proxy-nginx-proxy-1
+    name: "{{ nginx_proxy_container_name }}"
   register: nginx_info
   failed_when: not nginx_info.exists or nginx_info.container.State.Status != "running"
   when: install_nginx_proxy | bool
