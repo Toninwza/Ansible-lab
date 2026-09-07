@@ -95,10 +95,10 @@
 - name: Debug docker_daemon_config
   debug:
     var: docker_daemon_config
-    
+
 - name: Configure Docker daemon
   ansible.builtin.copy:
-    content: "{{ docker_daemon_config }}"
+    content: "{{ docker_daemon_config | to_nice_json }}"
     dest: /etc/docker/daemon.json
     mode: '0644'
   notify: Restart Docker
