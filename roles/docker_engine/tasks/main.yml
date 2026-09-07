@@ -82,17 +82,22 @@
     state: directory
     mode: '0755'
 
+- name: Validate daemon.json syntax
+  ansible.builtin.set_fact:
+    parsed_docker_daemon_config: "{{ docker_daemon_config | from_json }}"
+
+- name: Ensure daemon config is a JSON object
+  ansible.builtin.assert:
+    that:
+      - parsed_docker_daemon_config is mapping
+    fail_msg: "docker_daemon_config must be a valid JSON object"
+
 - name: Configure Docker daemon
   ansible.builtin.copy:
-    content: |
-      {
-        "default-address-pools": [{"base":"172.29.2.0/16","size":24}],
-        "bip": "172.29.2.1/24",
-        "log-driver": "json-file",
-        "log-opts": {"max-size": "100m", "max-file": "5"}
-      }
+    content: "{{ docker_daemon_config }}"
     dest: /etc/docker/daemon.json
     mode: '0644'
+    validate: 'dockerd --validate --config-file=%s'
   notify: Restart Docker
 
 - name: Install Docker Engine
