@@ -97,7 +97,6 @@
     content: "{{ docker_daemon_config }}"
     dest: /etc/docker/daemon.json
     mode: '0644'
-    validate: 'dockerd --validate --config-file=%s'
   notify: Restart Docker
 
 - name: Install Docker Engine
