@@ -1,4 +1,4 @@
-docker_daemon_config: |
+docker_daemon_config: 
   {
     "default-address-pools":
     [
