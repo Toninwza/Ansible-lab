@@ -1,5 +1,5 @@
 docker_daemon_config: 
-{
+  {
   "default-address-pools":
   [
     {"base":"172.29.2.0/16","size":24}
@@ -10,4 +10,4 @@ docker_daemon_config:
     "max-size": "100m",
     "max-file": "5"  
   }
-}
+  }
