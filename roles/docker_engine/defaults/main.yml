@@ -11,4 +11,3 @@ docker_daemon_config:
       "max-file": "{{ docker_log_max_file }}"
     }
   }
-  
