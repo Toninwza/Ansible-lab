@@ -92,6 +92,10 @@
       - parsed_docker_daemon_config is mapping
     fail_msg: "docker_daemon_config must be a valid JSON object"
 
+- name: Debug docker_daemon_config
+  debug:
+    var: docker_daemon_config
+    
 - name: Configure Docker daemon
   ansible.builtin.copy:
     content: "{{ docker_daemon_config }}"
