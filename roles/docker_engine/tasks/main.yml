@@ -82,14 +82,6 @@
     state: directory
     mode: '0755'
 
-- name: Debug docker_daemon_config
-  debug:
-    var: docker_daemon_config
-
-- name: Debug docker_daemon_config type
-  ansible.builtin.debug:
-    msg: "Type is: {{ docker_daemon_config | type_debug }}"
-
 - name: Configure Docker daemon
   ansible.builtin.copy:
     content: "{{ docker_daemon_config | to_nice_json(indent=2,sort_keys=False) }}"
