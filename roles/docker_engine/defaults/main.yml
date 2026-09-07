@@ -2,7 +2,7 @@ docker_daemon_config:
   {
     "default-address-pools":
     [
-      {"base": "{{ docker_address_pool_base }}", "size": {{ docker_address_pool_size }}}
+      {"base": "{{ docker_address_pool_base }}", "size": "{{ docker_address_pool_size }}"}
     ],
     "bip": "{{ docker_bip }}",
     "log-driver": "json-file",
