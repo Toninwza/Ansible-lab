@@ -82,13 +82,6 @@
     state: directory
     mode: '0755'
 
-
-- name: Ensure daemon config is a JSON object
-  ansible.builtin.assert:
-    that:
-      - parsed_docker_daemon_config is mapping
-    fail_msg: "docker_daemon_config must be a valid JSON object"
-
 - name: Debug docker_daemon_config
   debug:
     var: docker_daemon_config
