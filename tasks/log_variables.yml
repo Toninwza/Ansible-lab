@@ -1,6 +1,6 @@
 - name: Log execution variables
   debug:
-    msg: 
+    msg: |-
       REQUEST target_host = {{ target_host }}
       target_user = {{ target_user | default('n/a') }}
       docker = {{ install_docker | default(false) }}
