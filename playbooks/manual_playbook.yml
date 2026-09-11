@@ -4,6 +4,9 @@
   hosts: all
   become: true
   become_user: root 
+  
+  pre_tasks:
+    - import_tasks: tasks/log_variables.yml
 
   roles:
     - role: docker_engine
