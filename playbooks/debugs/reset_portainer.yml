@@ -1,7 +1,7 @@
 ---
 - name: Reset Portainer Server (recover from stuck/failed admin-init)
   hosts: all
-  gather_facts: false
+  gather_facts: true
   become: true
   become_user: root
 
