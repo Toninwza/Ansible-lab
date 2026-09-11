@@ -1,10 +1,10 @@
 - name: Log execution variables
   debug:
-    msg: |-
-      REQUEST target_host={{ target_host }}
-      target_user={{ target_user | default('n/a') }}
-      docker={{ install_docker | default(false) }}
-      nginx_proxy={{ install_nginx_proxy | default(false) }}
-      portainer_server={{ install_portainer_server | default(false) }}
-      portainer_agent={{ install_portainer_agent | default(false) }}
+    msg: 
+      REQUEST target_host = {{ target_host }}
+      target_user = {{ target_user | default('n/a') }}
+      docker = {{ install_docker | default(false) }}
+      nginx_proxy = {{ install_nginx_proxy | default(false) }}
+      portainer_server = {{ install_portainer_server | default(false) }}
+      portainer_agent = {{ install_portainer_agent | default(false) }}
   run_once: true
