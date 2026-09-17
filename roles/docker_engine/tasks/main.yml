@@ -20,24 +20,22 @@
   ansible.builtin.fail:
     msg: >
       This host ({{ inventory_hostname }}) already has Docker installed
-      {% if unknown_containers is defined and unknown_containers | length > 0 %}
-      and {{ unknown_containers | length }} container(s) not created by Ansible were found
-      {% endif %}
+      with {{ unknown_containers | length }} container(s) not created by Ansible
       — if this is intentional, pass target_confirm_docker_overwrite=true.
   when:
     - docker_binary_check.stat.exists
+    - unknown_containers is defined
+    - unknown_containers | length > 0
     - target_confirm_docker_overwrite | default(false) | bool == false
 
-- name: Clean old docker repo files
+- name: Clean legacy docker repo files
   ansible.builtin.file:
     path: "{{ item }}"
     state: absent
   loop:
     - /etc/apt/sources.list.d/docker.list
     - /etc/apt/sources.list.d/download_docker_com_linux_ubuntu.list
-    - /etc/apt/keyrings/docker.asc
     - /etc/apt/keyrings/docker.gpg
-    - /etc/apt/sources.list.d/docker.sources
   when: >
     not docker_binary_check.stat.exists
     or target_confirm_docker_overwrite | default(false) | bool
