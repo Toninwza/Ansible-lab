@@ -5,48 +5,23 @@
   register: docker_status
   failed_when: docker_status.status.ActiveState != "active"
 
-# Look up nginx-proxy by its compose project label instead of a container name:
-# the name is set in the compose file (or auto-generated as <project>-<service>-1),
-# so it does not reliably match a variable.
-- name: Get nginx-proxy containers from its compose project
-  community.docker.docker_host_info:
-    containers: true
-    containers_all: true
-    containers_filters:
-      label: "com.docker.compose.project={{ nginx_proxy_compose_project }}"
-  vars:
-    nginx_proxy_compose_project: >-
-      {{ nginx_proxy_compose_project_name
-         | default(nginx_proxy_dest_dir | regex_replace('/+$', '') | basename | lower
-                   | regex_replace('[^a-z0-9_-]', '')) }}
-  register: nginx_info
+- name: Check nginx is responding
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:82/nginx_status"
+    status_code: 200
+  register: nginx_status
+  retries: 6
+  delay: 5
+  until: nginx_status is succeeded
   when: install_nginx_proxy | default(false) | bool
 
-- name: Check nginx-proxy containers are running
-  ansible.builtin.assert:
-    that:
-      - nginx_info.containers | length > 0
-      - nginx_info.containers | rejectattr('State', 'equalto', 'running') | list | length == 0
-    fail_msg: >-
-      nginx-proxy is not running. Found:
-      {{ nginx_info.containers | map(attribute='Names') | map('first') | zip(nginx_info.containers | map(attribute='State')) | list
-         if nginx_info.containers | length > 0 else 'no containers for this compose project' }}
-    quiet: true
-  when: install_nginx_proxy | default(false) | bool
-
-- name: Get portainer_server container info
-  community.docker.docker_container_info:
-    name: portainer_server
-  register: ps_info
-  when: install_portainer_server | default(false) | bool
-
-- name: Check portainer_server container is running
-  ansible.builtin.assert:
-    that:
-      - ps_info.exists
-      - ps_info.container.State.Status == "running"
-    fail_msg: >-
-      portainer_server is
-      {{ ps_info.container.State.Status if ps_info.exists else 'not found' }}
-    quiet: true
+- name: Check Portainer Server is responding
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:9443/api/system/status"
+    validate_certs: false
+    status_code: 200
+  register: portainer_status
+  retries: 6
+  delay: 5
+  until: portainer_status is succeeded
   when: install_portainer_server | default(false) | bool
