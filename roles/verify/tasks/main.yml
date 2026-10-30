@@ -5,35 +5,48 @@
   register: docker_status
   failed_when: docker_status.status.ActiveState != "active"
 
-- name: Check nginx-proxy container is running
-  community.docker.docker_container_info:
-    name: "{{ nginx_proxy_container_name }}"
+# Look up nginx-proxy by its compose project label instead of a container name:
+# the name is set in the compose file (or auto-generated as <project>-<service>-1),
+# so it does not reliably match a variable.
+- name: Get nginx-proxy containers from its compose project
+  community.docker.docker_host_info:
+    containers: true
+    containers_all: true
+    containers_filters:
+      label: "com.docker.compose.project={{ nginx_proxy_compose_project }}"
+  vars:
+    nginx_proxy_compose_project: >-
+      {{ nginx_proxy_compose_project_name
+         | default(nginx_proxy_dest_dir | regex_replace('/+$', '') | basename | lower
+                   | regex_replace('[^a-z0-9_-]', '')) }}
   register: nginx_info
-  failed_when: not nginx_info.exists or nginx_info.container.State.Status != "running"
-  when: install_nginx_proxy | bool
+  when: install_nginx_proxy | default(false) | bool
 
-- name: Check portainer_agent container is running
+- name: Check nginx-proxy containers are running
+  ansible.builtin.assert:
+    that:
+      - nginx_info.containers | length > 0
+      - nginx_info.containers | rejectattr('State', 'equalto', 'running') | list | length == 0
+    fail_msg: >-
+      nginx-proxy is not running. Found:
+      {{ nginx_info.containers | map(attribute='Names') | map('first') | zip(nginx_info.containers | map(attribute='State')) | list
+         if nginx_info.containers | length > 0 else 'no containers for this compose project' }}
+    quiet: true
+  when: install_nginx_proxy | default(false) | bool
+
+- name: Get portainer_server container info
   community.docker.docker_container_info:
-    name: portainer_agent
-  register: pa_info
-  failed_when: not pa_info.exists or pa_info.container.State.Status != "running"
-  when: install_portainer_agent | bool
+    name: portainer_server
+  register: ps_info
+  when: install_portainer_server | default(false) | bool
 
-- name: Check Node.js is accessible via NVM
-  ansible.builtin.shell: |
-    source ~/.nvm/nvm.sh && node --version
-  args:
-    executable: /bin/bash
-  become: true
-  become_user: "{{ nvm_user | default('ubuntu') }}"
-  register: node_version
-  failed_when: node_version.rc != 0
-  changed_when: false
-  when: install_nvm | bool
-
-- name: Check .NET SDK is installed
-  ansible.builtin.command: dotnet --version
-  register: dotnet_check
-  failed_when: dotnet_check.rc != 0
-  changed_when: false
-  when: install_dotnet | bool
+- name: Check portainer_server container is running
+  ansible.builtin.assert:
+    that:
+      - ps_info.exists
+      - ps_info.container.State.Status == "running"
+    fail_msg: >-
+      portainer_server is
+      {{ ps_info.container.State.Status if ps_info.exists else 'not found' }}
+    quiet: true
+  when: install_portainer_server | default(false) | bool
