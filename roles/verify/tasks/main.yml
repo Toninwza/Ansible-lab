@@ -2,17 +2,18 @@
 - name: Check Docker service is active
   ansible.builtin.systemd:
     name: docker
-  register: docker_status
-  failed_when: docker_status.status.ActiveState != "active"
+  register: verify_docker_status
+  failed_when: verify_docker_status.status.ActiveState != "active"
 
 - name: Check nginx is responding
   ansible.builtin.uri:
+    # kics-scan ignore-line
     url: "http://127.0.0.1:82/nginx_status"
     status_code: 200
-  register: nginx_status
+  register: verify_nginx_status
   retries: 6
   delay: 5
-  until: nginx_status is succeeded
+  until: verify_nginx_status is succeeded
   when: install_nginx_proxy | default(false) | bool
 
 - name: Check Portainer Server is responding
@@ -20,8 +21,8 @@
     url: "https://127.0.0.1:9443/api/system/status"
     validate_certs: false
     status_code: 200
-  register: portainer_status
+  register: verify_portainer_status
   retries: 6
   delay: 5
-  until: portainer_status is succeeded
+  until: verify_portainer_status is succeeded
   when: install_portainer_server | default(false) | bool

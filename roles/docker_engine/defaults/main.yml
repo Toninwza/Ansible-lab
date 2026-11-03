@@ -1,14 +1,10 @@
-docker_daemon_config:
-  {
-    "default-address-pools":
-    [
-      {"base": "{{ docker_address_pool_base }}", "size": "{{ docker_address_pool_size }}"}
-    ],
-    "bip": "{{ docker_bip }}",
-    "log-driver": "json-file",
-    "log-opts": {
-      "max-size": "{{ docker_log_max_size }}",
-      "max-file": "{{ docker_log_max_file }}"
-    },
-    "live-restore": "{{ docker_live_restore | bool}}"
-  }
+docker_engine_daemon_config:
+  default-address-pools:
+    - base: "{{ docker_address_pool_base }}"
+      size: "{{ docker_address_pool_size }}"
+  bip: "{{ docker_bip }}"
+  log-driver: json-file
+  log-opts:
+    max-size: "{{ docker_log_max_size }}"
+    max-file: "{{ docker_log_max_file }}"
+  live-restore: "{{ docker_live_restore | bool }}"

@@ -17,7 +17,11 @@
   pre_tasks:
     - name: Show install flags
       ansible.builtin.debug:
-        msg: "docker={{ install_docker | default('undefined') }}, nginx={{ install_nginx_proxy | default('undefined') }}, portainer_server={{ install_portainer_server | default('undefined') }}, portainer_agent={{ install_portainer_agent | default('undefined') }}"
+        msg: >-
+          docker={{ install_docker | default('undefined') }},
+          nginx={{ install_nginx_proxy | default('undefined') }},
+          portainer_server={{ install_portainer_server | default('undefined') }},
+          portainer_agent={{ install_portainer_agent | default('undefined') }}
     - name: Check Docker binary exists
       ansible.builtin.stat:
         path: /usr/bin/docker
@@ -36,17 +40,17 @@
 
     - role: nginx_proxy
       when: install_nginx_proxy | bool
-    
+
     - role: portainer_server
       when: install_portainer_server | bool
 
     - role: portainer_agent
       when: install_portainer_agent | bool
-      
-    - role : nvm
+
+    - role: nvm
       when: install_nvm | default(false) | bool
 
-    - role : dotnet
+    - role: dotnet
       when: install_dotnet | default(false) | bool
 
     - role: verify

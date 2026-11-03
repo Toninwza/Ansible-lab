@@ -14,14 +14,14 @@
 # Per Step to Install New Server.txt, item 5:
 # "Add Environment to Portainer Host in each environment"
 # Server runs on the same host as the Agent (localhost), so no delegate_to needed
-# Uses the token created by the portainer_server role via portainer_local_token
+# Uses the token created by the portainer_server role via portainer_server_local_token
 - name: Check if this host is already registered as an environment
   ansible.builtin.uri:
     url: "https://localhost:9443/api/endpoints"
     method: GET
     validate_certs: false
     headers:
-      X-API-Key: "{{ portainer_local_token }}"
+      X-API-Key: "{{ portainer_server_local_token }}"
     status_code: [200, 201, 202, 204]
   register: portainer_existing_endpoints
   no_log: true
@@ -36,7 +36,7 @@
     method: POST
     validate_certs: false
     headers:
-      X-API-Key: "{{ portainer_local_token }}"
+      X-API-Key: "{{ portainer_server_local_token }}"
     body_format: form-urlencoded
     body:
       Name: "{{ inventory_hostname }}"

@@ -21,7 +21,7 @@
 
     - role: nginx_proxy
       when: install_nginx_proxy | bool
-    
+
     - role: portainer_server
       when: install_portainer_server | bool
 

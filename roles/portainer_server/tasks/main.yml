@@ -37,8 +37,8 @@
     url: "https://localhost:9443/api/system/status"
     validate_certs: false
     status_code: [200, 201, 202, 204]
-  register: portainer_status
-  until: portainer_status.status == 200
+  register: portainer_server_status
+  until: portainer_server_status.status == 200
   retries: 15
   delay: 5
 
@@ -50,11 +50,13 @@
     method: GET
     validate_certs: false
     status_code: [204, 404]
-  register: portainer_admin_check
+  register: portainer_server_admin_check
 
 - name: Log admin check result
   ansible.builtin.debug:
-    msg: "Admin account check for {{ inventory_hostname }} — status: {{ portainer_admin_check.status }} ({{ 'already exists' if portainer_admin_check.status == 204 else 'not created yet' }})"
+    msg: >-
+      Admin account check for {{ inventory_hostname }} — status: {{ portainer_server_admin_check.status }}
+      ({{ 'already exists' if portainer_server_admin_check.status == 204 else 'not created yet' }})
 
 # This is the same endpoint the browser's first-time setup form submits to —
 # password goes over HTTPS in the request body only, never touches disk.
@@ -70,12 +72,12 @@
       Username: "admin"
       Password: "{{ lookup('env', 'portainer_admin_password') }}"
     status_code: [200, 201, 202, 204]
-  when: portainer_admin_check.status == 404
+  when: portainer_server_admin_check.status == 404
 
 - name: Log admin init result (no secret included)
   ansible.builtin.debug:
     msg: "Admin account created for {{ inventory_hostname }}"
-  when: portainer_admin_check.status == 404
+  when: portainer_server_admin_check.status == 404
 
 - name: Authenticate to Portainer to get JWT
   ansible.builtin.uri:
@@ -87,12 +89,12 @@
       username: "admin"
       password: "{{ lookup('env', 'portainer_admin_password') }}"
     status_code: [200, 201, 202, 204]
-  register: portainer_auth
-  #no_log: true
+  register: portainer_server_auth
+  # no_log: true  # TODO: เปิดก่อนขึ้น prod (ปิดไว้ใน dev เพื่อดู output)
 
 - name: Log authenticate result (no secret included)
   ansible.builtin.debug:
-    msg: "Authenticated to Portainer — status: {{ portainer_auth.status | default('failed') }}"
+    msg: "Authenticated to Portainer — status: {{ portainer_server_auth.status | default('failed') }}"
 
 # Portainer only shows the raw token once, at creation time (can't be retrieved again)
 # so we don't check for an existing token — create a new one every run and delete the old one to avoid buildup
@@ -102,10 +104,10 @@
     method: GET
     validate_certs: false
     headers:
-      Authorization: "Bearer {{ portainer_auth.json.jwt }}"
+      Authorization: "Bearer {{ portainer_server_auth.json.jwt }}"
     status_code: [200, 201, 202, 204]
-  register: portainer_existing_tokens
-  #no_log: true
+  register: portainer_server_existing_tokens
+  # no_log: true  # TODO: เปิดก่อนขึ้น prod (ปิดไว้ใน dev เพื่อดู output)
 
 - name: Remove old ansible-provisioning tokens
   ansible.builtin.uri:
@@ -113,16 +115,18 @@
     method: DELETE
     validate_certs: false
     headers:
-      Authorization: "Bearer {{ portainer_auth.json.jwt }}"
+      Authorization: "Bearer {{ portainer_server_auth.json.jwt }}"
     status_code: [200, 201, 202, 204]
-  loop: "{{ portainer_existing_tokens.json | selectattr('description', 'equalto', 'ansible-provisioning') | list }}"
+  loop: "{{ portainer_server_existing_tokens.json | selectattr('description', 'equalto', 'ansible-provisioning') | list }}"
   loop_control:
     label: "{{ item.description }}"
-  #no_log: true
+  # no_log: true  # TODO: เปิดก่อนขึ้น prod (ปิดไว้ใน dev เพื่อดู output)
 
 - name: Log number of old tokens removed (no secret included)
   ansible.builtin.debug:
-    msg: "Removed {{ portainer_existing_tokens.json | selectattr('description', 'equalto', 'ansible-provisioning') | list | length }} old ansible-provisioning tokens"
+    msg: >-
+      Removed {{ portainer_server_existing_tokens.json | selectattr('description', 'equalto', 'ansible-provisioning') | list | length }}
+      old ansible-provisioning tokens
 
 - name: Create a fresh API access token for this run
   ansible.builtin.uri:
@@ -130,20 +134,20 @@
     method: POST
     validate_certs: false
     headers:
-      Authorization: "Bearer {{ portainer_auth.json.jwt }}"
+      Authorization: "Bearer {{ portainer_server_auth.json.jwt }}"
     body_format: json
     body:
       description: "ansible-provisioning"
       password: "{{ lookup('env', 'portainer_admin_password') }}"
     status_code: [200, 201, 202, 204]
-  register: portainer_new_token
-  #no_log: true
+  register: portainer_server_new_token
+  # no_log: true  # TODO: เปิดก่อนขึ้น prod (ปิดไว้ใน dev เพื่อดู output)
 
 # Store the token as a fact for the portainer_agent role (runs next in the same play) to use
 - name: Set fact for local Portainer API token
   ansible.builtin.set_fact:
-    portainer_local_token: "{{ portainer_new_token.json.rawAPIKey }}"
-  #no_log: true
+    portainer_server_local_token: "{{ portainer_server_new_token.json.rawAPIKey }}"
+  # no_log: true  # TODO: เปิดก่อนขึ้น prod (ปิดไว้ใน dev เพื่อดู output)
 
 - name: Log that a new token was created successfully (no secret included)
   ansible.builtin.debug:

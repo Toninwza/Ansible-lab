@@ -1,16 +1,17 @@
 ---
-# For Static Inventory 
+# For Static Inventory
 - name: On-demand server provisioning
   hosts: all
   become: true
-  become_user: root 
-  
+  become_user: root
+
   pre_tasks:
-    - import_tasks: ../tasks/log_variables.yml
+    - name: Log execution variables
+      ansible.builtin.import_tasks: ../tasks/log_variables.yml
 
   roles:
     - role: docker_engine
-      when: install_docker | bool 
+      when: install_docker | bool
 
     - role: nginx_proxy
       when: install_nginx_proxy | bool
@@ -23,4 +24,3 @@
         install_docker | default(false) | bool or
         install_nginx_proxy | default(false) | bool or
         install_portainer_server | default(false) | bool
-

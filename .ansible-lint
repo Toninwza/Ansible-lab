@@ -5,6 +5,8 @@ exclude_paths:
   - .cache/
   - collections/ansible_collections/
   - molecule/
+  # playbook สำหรับ debug ด้วยมือ ไม่ได้อยู่ใน flow หลัก
+  - playbooks/debugs/
   # roles ที่ยังไม่ใช้งานจริง ให้ลบบรรทัดนี้ออกตอนเริ่มใช้
   - roles/dotnet/
   - roles/nvm/

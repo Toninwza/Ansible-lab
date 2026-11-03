@@ -13,8 +13,8 @@
 
 - name: Copy SSL certificates
   ansible.builtin.copy:
-    src: "{{ nginx_proxy_cert_src_dir }}/{{ item }}"   
-    dest: "{{ nginx_proxy_cert_dir }}/{{ item }}"       
+    src: "{{ nginx_proxy_cert_src_dir }}/{{ item }}"
+    dest: "{{ nginx_proxy_cert_dir }}/{{ item }}"
     mode: '0644'
   loop: "{{ nginx_proxy_cert_files }}"
 
