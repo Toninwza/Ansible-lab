@@ -77,6 +77,30 @@ jobs:
             -p /src --type ansible --fail-on high \
             --exclude-paths /src/collections/ansible_collections \
             -o /src/kics-results --report-formats "json,sarif"
+      - name: KICS summary
+        if: always()
+        run: |
+          f=kics-results/results.json
+          if [ ! -f "$f" ]; then
+            echo "KICS: ไม่พบ $f" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "## KICS scan"
+            echo
+            echo "| ระดับ | จำนวน |"
+            echo "| --- | --- |"
+            jq -r '(.severity_counters // {}) | to_entries[] | "| \(.key) | \(.value) |"' "$f"
+            echo
+            echo "| ระดับ | ปัญหา | ไฟล์:บรรทัด |"
+            echo "| --- | --- | --- |"
+            jq -r '
+              (.queries // [])
+              | sort_by({"CRITICAL":0,"HIGH":1,"MEDIUM":2,"LOW":3,"INFO":4}[.severity])
+              | .[] | . as $q | .files[]
+              | "| \($q.severity) | \($q.query_name) | `\(.file_name | sub("^(\\.\\./)*/?src/"; "")):\(.line)` |"
+            ' "$f"
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
