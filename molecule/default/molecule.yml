@@ -1,0 +1,35 @@
+---
+# ทดสอบ role docker_engine (+ role verify) ใน container Ubuntu 24.04 ที่บูต systemd ได้
+# privileged + cgroup host เพื่อให้ dockerd รันซ้อนข้างใน container ได้ (Docker-in-Docker)
+dependency:
+  name: galaxy
+  enabled: false # workflow ติดตั้ง collections/requirements.yml ให้แล้ว
+driver:
+  name: docker
+platforms:
+  - name: ubuntu2404
+    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    pre_build_image: true
+    command: ""
+    privileged: true
+    cgroupns_mode: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      # dockerd ข้างในใช้ overlay2 ซ้อนบน overlay ไม่ได้ ต้องเก็บข้อมูลบน volume แยก
+      - /var/lib/docker
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_ROLES_PATH: ${MOLECULE_PROJECT_DIRECTORY}/roles
+  inventory:
+    group_vars:
+      all:
+        # ค่าทดสอบ — ของจริงส่งมาจาก extra-vars
+        docker_address_pool_base: 10.200.0.0/16
+        docker_address_pool_size: 24
+        docker_bip: 10.199.0.1/24
+        docker_log_max_size: 10m
+        docker_log_max_file: "3"
+        docker_live_restore: true
+verifier:
+  name: ansible

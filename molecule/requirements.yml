@@ -1,0 +1,5 @@
+---
+# collections ที่ driver docker ของ molecule ต้องใช้ (นอกเหนือจาก collections/requirements.yml)
+collections:
+  - name: ansible.posix
+    version: ">=1.4.0"

@@ -1,0 +1,49 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Run the project's verify role
+      ansible.builtin.include_role:
+        name: verify
+
+    - name: Read /etc/docker/daemon.json
+      ansible.builtin.slurp:
+        src: /etc/docker/daemon.json
+      register: daemon_json_raw
+
+    - name: Parse daemon.json
+      ansible.builtin.set_fact:
+        daemon_json: "{{ daemon_json_raw.content | b64decode | from_json }}"
+
+    - name: Check daemon.json content
+      ansible.builtin.assert:
+        that:
+          - daemon_json['bip'] == '10.199.0.1/24'
+          - daemon_json['default-address-pools'][0]['base'] == '10.200.0.0/16'
+          - daemon_json['default-address-pools'][0]['size'] == 24
+          - daemon_json['log-driver'] == 'json-file'
+          - daemon_json['log-opts']['max-size'] == '10m'
+          - daemon_json['log-opts']['max-file'] == '3'
+          - daemon_json['live-restore'] is sameas true
+
+    - name: Check Docker can run a container
+      ansible.builtin.command: docker run --rm hello-world
+      changed_when: false
+
+    - name: Check standard app directories
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: app_dirs
+      loop:
+        - /mnt-apps
+        - /mnt-dbs
+
+    - name: Assert standard app directories exist
+      ansible.builtin.assert:
+        that: item.stat.isdir | default(false)
+        fail_msg: "{{ item.item }} is missing"
+      loop: "{{ app_dirs.results }}"
+      loop_control:
+        label: "{{ item.item }}"

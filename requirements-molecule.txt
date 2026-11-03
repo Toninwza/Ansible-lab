@@ -1,0 +1,3 @@
+# สำหรับ job molecule (ใช้คู่กับ requirements-ci.txt)
+molecule
+molecule-plugins[docker]
