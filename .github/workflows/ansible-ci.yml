@@ -50,9 +50,15 @@ jobs:
             ansible-playbook "$f" --syntax-check -i localhost,
           done
 
-  # ---- molecule: ทดสอบเฉพาะ role ที่ถูกแก้ใน commit / PR นี้ ----
-  # (ถ้าต้องการทดสอบทุก role ให้รัน workflow "Molecule (full)" แทน)
+  # ---- molecule: ทดสอบเฉพาะ role ที่ถูกแก้ ----
+  # รันเฉพาะ: PR เข้า main / push เข้า main / กดรันเอง (workflow_dispatch = ทุก role)
+  # push ไป branch อื่นจะข้าม molecule (lint / secrets / kics ยังรันทุก push)
+  # (ทดสอบทุก role: รัน workflow "Molecule (full)")
   molecule-detect:
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
     name: molecule detect changed roles
     runs-on: ubuntu-latest
     outputs:
@@ -83,7 +89,9 @@ jobs:
 
   molecule:
     needs: [lint, molecule-detect]
-    if: needs.molecule-detect.outputs.scenarios != '[]'
+    if: >-
+      needs.molecule-detect.result == 'success' &&
+      needs.molecule-detect.outputs.scenarios != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -125,6 +133,10 @@ jobs:
           SCENARIOS: ${{ needs.molecule-detect.outputs.scenarios }}
         run: |
           echo "detect=$DETECT molecule=$MOLECULE scenarios=$SCENARIOS"
+          if [ "$DETECT" = skipped ]; then
+            echo "ไม่รัน molecule กับ event นี้ (รันเฉพาะ PR / push เข้า main / กดรันเอง)"
+            exit 0
+          fi
           [ "$DETECT" = success ] || { echo "detect job ไม่สำเร็จ"; exit 1; }
           if [ "$SCENARIOS" = "[]" ]; then
             echo "ไม่มี role ที่ต้องทดสอบใน commit นี้"
