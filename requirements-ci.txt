@@ -1,0 +1,6 @@
+# รอบแรกยังไม่ pin เพื่อให้รันผ่านก่อน
+# หลังรันสำเร็จ ดูเวอร์ชันจาก log ของ step "Install tools" แล้วเปลี่ยนเป็น ==x.y.z ทุกบรรทัด
+ansible-core
+ansible-lint
+yamllint
+ 

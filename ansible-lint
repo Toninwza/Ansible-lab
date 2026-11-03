@@ -1,0 +1,9 @@
+---
+profile: moderate
+exclude_paths:
+  - .github/
+  - .cache/
+  - collections/ansible_collections/
+  - molecule/
+warn_list:
+  - experimental
