@@ -5,6 +5,9 @@ exclude_paths:
   - .cache/
   - collections/ansible_collections/
   - molecule/
+  # roles ที่ยังไม่ใช้งานจริง ให้ลบบรรทัดนี้ออกตอนเริ่มใช้
+  - roles/dotnet/
+  - roles/nvm/
+  - roles/portainer_agent/
 warn_list:
   - experimental
-  

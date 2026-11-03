@@ -1,0 +1,10 @@
+roles/dotnet/tasks/main.yml yaml[line-length]
+roles/dotnet/tasks/main.yml yaml[new-line-at-end-of-file]
+roles/dotnet/tasks/main.yml yaml[truthy]
+roles/nvm/defaults/main.yml yaml[new-line-at-end-of-file]
+roles/nvm/tasks/main.yml command-instead-of-module
+roles/nvm/tasks/main.yml var-naming[no-role-prefix]
+roles/nvm/tasks/main.yml yaml[new-line-at-end-of-file]
+roles/nvm/tasks/main.yml yaml[truthy]
+roles/portainer_agent/tasks/main.yml var-naming[no-role-prefix]
+roles/portainer_agent/tasks/main.yml yaml[new-line-at-end-of-file]
