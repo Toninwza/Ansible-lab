@@ -17,7 +17,8 @@ set -euo pipefail
 base="${1:-}"
 
 RUN_ALL_FILES=(
-  .github/workflows/molecule.yml
+  .github/workflows/ansible-ci.yml
+  .github/workflows/molecule-full.yml
   .github/scripts/detect-molecule-scenarios.sh
   requirements-ci.txt
   requirements-molecule.txt
