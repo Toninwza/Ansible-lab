@@ -7,6 +7,11 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened]
   workflow_dispatch:
+    inputs:
+      skip_molecule:
+        description: "ข้าม molecule (สแกนเร็ว: lint / secrets / kics อย่างเดียว)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -51,13 +56,14 @@ jobs:
           done
 
   # ---- molecule: ทดสอบเฉพาะ role ที่ถูกแก้ ----
-  # รันเฉพาะ: PR เข้า main / push เข้า main / กดรันเอง (workflow_dispatch = ทุก role)
+  # รันเฉพาะ: PR เข้า main / push เข้า main / กดรันเอง (workflow_dispatch = ทุก role,
+  # ยกเว้นติ๊ก skip_molecule)
   # push ไป branch อื่นจะข้าม molecule (lint / secrets / kics ยังรันทุก push)
   # (ทดสอบทุก role: รัน workflow "Molecule (full)")
   molecule-detect:
     if: >-
       github.event_name == 'pull_request' ||
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && !inputs.skip_molecule) ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
     name: molecule detect changed roles
     runs-on: ubuntu-latest
@@ -134,7 +140,7 @@ jobs:
         run: |
           echo "detect=$DETECT molecule=$MOLECULE scenarios=$SCENARIOS"
           if [ "$DETECT" = skipped ]; then
-            echo "ไม่รัน molecule กับ event นี้ (รันเฉพาะ PR / push เข้า main / กดรันเอง)"
+            echo "ไม่รัน molecule กับ event นี้ (push ไป branch อื่น หรือกดรันแบบติ๊ก skip_molecule)"
             exit 0
           fi
           [ "$DETECT" = success ] || { echo "detect job ไม่สำเร็จ"; exit 1; }
