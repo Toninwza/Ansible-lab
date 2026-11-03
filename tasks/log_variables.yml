@@ -6,5 +6,4 @@
       docker = {{ install_docker | default(false) }}
       nginx_proxy = {{ install_nginx_proxy | default(false) }}
       portainer_server = {{ install_portainer_server | default(false) }}
-      portainer_agent = {{ install_portainer_agent | default(false) }}
   run_once: true

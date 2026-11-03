@@ -18,8 +18,9 @@
     - role: portainer_server
       when: install_portainer_server | bool
 
-    - role: portainer_agent
-      when: install_portainer_agent | bool
-
     - role: verify
-      when: install_docker | bool or install_nginx_proxy | bool or install_portainer_agent | bool
+      when: >-
+        install_docker | default(false) | bool or
+        install_nginx_proxy | default(false) | bool or
+        install_portainer_server | default(false) | bool
+
