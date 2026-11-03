@@ -15,8 +15,10 @@ platforms:
     cgroupns_mode: host
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
-      # dockerd ข้างในใช้ overlay2 ซ้อนบน overlay ไม่ได้ ต้องเก็บข้อมูลบน volume แยก
+      # dockerd/containerd ข้างในใช้ overlay ซ้อนบน overlay ไม่ได้ ต้องเก็บข้อมูลบน volume แยก
+      # (Docker รุ่นใหม่ใช้ containerd image store เก็บ image ไว้ที่ /var/lib/containerd)
       - /var/lib/docker
+      - /var/lib/containerd
 provisioner:
   name: ansible
   env:
