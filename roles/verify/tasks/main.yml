@@ -5,35 +5,23 @@
   register: docker_status
   failed_when: docker_status.status.ActiveState != "active"
 
-- name: Check nginx-proxy container is running
-  community.docker.docker_container_info:
-    name: "{{ nginx_proxy_container_name }}"
-  register: nginx_info
-  failed_when: not nginx_info.exists or nginx_info.container.State.Status != "running"
-  when: install_nginx_proxy | bool
+- name: Check nginx is responding
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:82/nginx_status"
+    status_code: 200
+  register: nginx_status
+  retries: 6
+  delay: 5
+  until: nginx_status is succeeded
+  when: install_nginx_proxy | default(false) | bool
 
-- name: Check portainer_agent container is running
-  community.docker.docker_container_info:
-    name: portainer_agent
-  register: pa_info
-  failed_when: not pa_info.exists or pa_info.container.State.Status != "running"
-  when: install_portainer_agent | bool
-
-- name: Check Node.js is accessible via NVM
-  ansible.builtin.shell: |
-    source ~/.nvm/nvm.sh && node --version
-  args:
-    executable: /bin/bash
-  become: true
-  become_user: "{{ nvm_user | default('ubuntu') }}"
-  register: node_version
-  failed_when: node_version.rc != 0
-  changed_when: false
-  when: install_nvm | bool
-
-- name: Check .NET SDK is installed
-  ansible.builtin.command: dotnet --version
-  register: dotnet_check
-  failed_when: dotnet_check.rc != 0
-  changed_when: false
-  when: install_dotnet | bool
+- name: Check Portainer Server is responding
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:9443/api/system/status"
+    validate_certs: false
+    status_code: 200
+  register: portainer_status
+  retries: 6
+  delay: 5
+  until: portainer_status is succeeded
+  when: install_portainer_server | default(false) | bool
