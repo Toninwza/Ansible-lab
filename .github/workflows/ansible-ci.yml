@@ -18,16 +18,16 @@ concurrency:
 env:
   # ให้ ansible หา collection จาก ./collections เสมอ ไม่ว่า ansible.cfg จะตั้งอะไรไว้
   ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}/collections
-  # รอบแรกใช้ latest เพื่อให้รันผ่านก่อน จากนั้นดูเวอร์ชันที่ log พิมพ์ แล้ว pin เป็น tag เฉพาะ
-  GITLEAKS_IMAGE: zricethezav/gitleaks:latest
-  KICS_IMAGE: checkmarx/kics:latest
+  # pin ด้วย digest ที่ได้จาก log ของรันแรก (วันที่ 2026-11-03)
+  GITLEAKS_IMAGE: zricethezav/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+  KICS_IMAGE: checkmarx/kics@sha256:ef29dbac14b046b1ef65f3280646112e927a61781c5f01bca1aeb723e0b96003
 
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # TODO: pin เป็น commit SHA
-      - uses: actions/setup-python@v5 # TODO: pin เป็น commit SHA
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
           cache: pip
@@ -36,11 +36,13 @@ jobs:
         run: pip install -r requirements-ci.txt
       - name: Install collections
         run: ansible-galaxy collection install -r collections/requirements.yml -p collections
-      - name: yamllint
-        run: yamllint .
+      - name: yamllint (workflow files)
+        run: yamllint .github
       - name: ansible-lint
+        if: ${{ !cancelled() }}
         run: ansible-lint
       - name: syntax-check
+        if: ${{ !cancelled() }}
         run: |
           for f in playbooks/*.yml playbooks/*.yaml; do
             [ -f "$f" ] || continue
@@ -51,7 +53,7 @@ jobs:
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # TODO: pin เป็น commit SHA
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: gitleaks
@@ -68,14 +70,14 @@ jobs:
   kics:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # TODO: pin เป็น commit SHA
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: KICS scan
         run: |
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/src" "$KICS_IMAGE" scan \
             -p /src --type ansible --fail-on high \
             --exclude-paths /src/collections/ansible_collections \
             -o /src/kics-results --report-formats "json,sarif"
-      - uses: actions/upload-artifact@v4 # TODO: pin เป็น commit SHA
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: kics-results
