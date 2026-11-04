@@ -12,7 +12,7 @@ REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 CUSTOM_Q="$REPO/docs/kics/queries"
 LAB="$(mktemp -d)"
 trap 'rm -rf "$LAB"' EXIT
-mkdir -p "$LAB"/{e1_high,e2_critical,e3_blindspot,e4_ignore,out}
+mkdir -p "$LAB"/{e1_high,e2_critical,e3_blindspot,e4_ignore,e6_file_ignore,e6_disable_id,out}
 
 # ---------- fixtures ----------
 cat > "$LAB/e1_high/secret.yml" <<'EOF'
@@ -80,6 +80,10 @@ cat > "$LAB/e4_ignore/http.yml" <<'EOF'
         url: "http://example.com/reported"
 EOF
 
+# ansible.cfg ที่มี HIGH (allow_unsafe_lookups) + ignore 2 แบบ
+printf '# kics-scan ignore\n[defaults]\nallow_unsafe_lookups = True\n' > "$LAB/e6_file_ignore/ansible.cfg"
+printf '# kics-scan disable=c6473dae-8477-4119-88b7-b909b435ce7b\n[defaults]\nallow_unsafe_lookups = True\n' > "$LAB/e6_disable_id/ansible.cfg"
+
 # ---------- helpers ----------
 # run <ชื่อ> <path ใน container> [args...]  -> พิมพ์ exit code + findings
 run() {
@@ -126,6 +130,10 @@ run e3 /lab/e3_blindspot --fail-on critical,high
 
 echo "===== 4) ignore ด้วย comment ====="
 run e4 /lab/e4_ignore --fail-on critical,high
+
+echo "===== 4b) ignore ทั้งไฟล์ vs disable เฉพาะ query id ====="
+run e6_file_ignore /lab/e6_file_ignore --fail-on critical,high
+run e6_disable_id  /lab/e6_disable_id  --fail-on critical,high
 
 echo "===== 5) custom query (docs/kics/queries) ====="
 run e5_lab  /lab/e3_blindspot -q /app/bin/assets/queries -q /custom --fail-on critical,high

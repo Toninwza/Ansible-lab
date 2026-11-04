@@ -124,7 +124,19 @@ HIGH  Passwords And Secrets - Generic Password  ->  secret.yml:7
     url: "http://example.com/ignored"     # ← ไม่ถูกรายงาน
 ```
 
-ใช้ได้ (มีแบบอื่นด้วย เช่น `# kics-scan ignore-block` และ `# kics-scan disable=<query-id>`) ถ้าใช้ควรใส่เหตุผลกำกับทุกครั้ง
+ใช้ได้จริง ที่น่าสนใจคือ **comment ไม่ได้อยู่ใน payload** (ดูหัวข้อ 2) แปลว่า Rego ยังรันและเจอเหมือนเดิม
+แต่ KICS เอาผลออกทีหลังโดยเทียบเลขบรรทัดกับ comment ถ้าใช้ควรใส่เหตุผลกำกับทุกครั้ง
+
+### E6: `# kics-scan ignore` ทั้งไฟล์ ปิดมากกว่าที่ตั้งใจ ⚠️
+
+`ansible.cfg` ที่มี `allow_unsafe_lookups = True` (HIGH):
+
+| comment บรรทัดแรก | exit | ผล |
+|---|---|---|
+| `# kics-scan ignore` | **0** | HIGH หายไปด้วย เพราะทั้งไฟล์ไม่ถูกตรวจเลย |
+| `# kics-scan disable=c6473dae-…` | 50 | ปิดแค่ "Logging of Sensitive Data" query เดียว ส่วน HIGH ยังจับได้ |
+
+→ **แก้ `ansible.cfg` แล้วให้ใช้ `disable=<query-id>`** แทนการ ignore ทั้งไฟล์
 
 ### E5: เขียน custom query เองได้
 
@@ -141,16 +153,17 @@ repo:  HIGH × 13   (portainer_server, portainer_agent, verify, debugs/*)
 
 ## 5. ผลกับ repo นี้ตอนนี้ (query มาตรฐาน)
 
-| Severity | Query | ตำแหน่ง | ความเห็น |
-|---|---|---|---|
-| MEDIUM | Communication Over HTTP | `roles/verify/tasks/main.yml:10` | `http://127.0.0.1:82/nginx_status` เป็น localhost รับได้ |
-| LOW | Logging of Sensitive Data In Defaults | `ansible.cfg:1` | ไม่ได้ตั้ง `no_log` เป็น default |
+**0 findings, exit 0** เดิมเจอ 2 ข้อ ซึ่งถูกจัดการด้วย comment ทั้งคู่:
 
-CI ผ่าน (exit 0) เพราะไม่มี CRITICAL/HIGH
+| เดิม | Query | ตำแหน่ง | จัดการยังไง |
+|---|---|---|---|
+| MEDIUM | Communication Over HTTP | `roles/verify/tasks/main.yml` | `# kics-scan ignore-line` (เป็น localhost health check) |
+| LOW | Logging of Sensitive Data In Defaults | `ansible.cfg` | `# kics-scan disable=c6473dae-…` (ใช้ `no_log` ราย task แทน) |
 
 ## 6. สรุปสำหรับ workflow
 
 - [x] แก้ `--fail-on high` → `--fail-on critical,high`
+- [x] `ansible.cfg`: เปลี่ยน `# kics-scan ignore` → `# kics-scan disable=<query-id>`
 - [x] pin image ด้วย digest (มีอยู่แล้ว)
 - [x] เก็บ `results.json` / `results.sarif` เป็น artifact (มีอยู่แล้ว)
 - [ ] ตัดสินใจเรื่อง custom query `validate_certs` (ข้อ E5)
