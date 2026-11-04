@@ -74,7 +74,7 @@ jobs:
       - name: KICS scan
         run: |
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/src" "$KICS_IMAGE" scan \
-            -p /src --type ansible --fail-on high \
+            -p /src --type ansible --fail-on critical,high \
             --exclude-paths /src/collections/ansible_collections \
             -o /src/kics-results --report-formats "json,sarif"
       - name: KICS summary

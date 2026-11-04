@@ -1,0 +1,12 @@
+{
+  "id": "7f1c9e2a-3b4d-4a6b-9c1d-0a11ab001001",
+  "queryName": "TLS Certificate Validation Disabled (lab custom)",
+  "severity": "HIGH",
+  "category": "Encryption",
+  "descriptionText": "uri/get_url with validate_certs: false allows MITM",
+  "descriptionUrl": "https://docs.ansible.com/ansible/latest/collections/ansible/builtin/uri_module.html",
+  "platform": "Ansible",
+  "descriptionID": "lab00001",
+  "cloudProvider": "common",
+  "cwe": "295"
+}
