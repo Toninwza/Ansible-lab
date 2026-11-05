@@ -36,6 +36,7 @@
         msg: "{{ portainer_logs.stdout_lines }}"
 
     - name: Test Portainer API status right now
+      # checkov:skip=CKV_ANSIBLE_1:Portainer API on localhost:9443 uses a self-signed cert
       ansible.builtin.uri:
         url: "https://localhost:9443/api/system/status"
         validate_certs: false

@@ -6,6 +6,7 @@
   failed_when: verify_docker_status.status.ActiveState != "active"
 
 - name: Check nginx is responding
+  # checkov:skip=CKV2_ANSIBLE_1:local nginx stub_status on 127.0.0.1 only
   ansible.builtin.uri:
     # kics-scan ignore-line
     url: "http://127.0.0.1:82/nginx_status"
@@ -17,6 +18,7 @@
   when: install_nginx_proxy | default(false) | bool
 
 - name: Check Portainer Server is responding
+  # checkov:skip=CKV_ANSIBLE_1:Portainer API on localhost:9443 uses a self-signed cert
   ansible.builtin.uri:
     url: "https://127.0.0.1:9443/api/system/status"
     validate_certs: false

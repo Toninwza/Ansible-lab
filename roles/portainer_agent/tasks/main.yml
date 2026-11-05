@@ -16,6 +16,7 @@
 # Server runs on the same host as the Agent (localhost), so no delegate_to needed
 # Uses the token created by the portainer_server role via portainer_server_local_token
 - name: Check if this host is already registered as an environment
+  # checkov:skip=CKV_ANSIBLE_1:Portainer API on localhost:9443 uses a self-signed cert
   ansible.builtin.uri:
     url: "https://localhost:9443/api/endpoints"
     method: GET
@@ -31,6 +32,7 @@
     msg: "Existing endpoint check for {{ inventory_hostname }} — status: {{ portainer_existing_endpoints.status | default('failed') }}"
 
 - name: Register this host to its local Portainer Server
+  # checkov:skip=CKV_ANSIBLE_1:Portainer API on localhost:9443 uses a self-signed cert
   ansible.builtin.uri:
     url: "https://localhost:9443/api/endpoints"
     method: POST

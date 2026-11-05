@@ -21,12 +21,18 @@ env:
   # pin ด้วย digest ที่ได้จาก log ของรันแรก (วันที่ 2026-11-03)
   GITLEAKS_IMAGE: zricethezav/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
   KICS_IMAGE: checkmarx/kics@sha256:ef29dbac14b046b1ef65f3280646112e927a61781c5f01bca1aeb723e0b96003
+  # aquasec/trivy:0.58.1
+  TRIVY_IMAGE: aquasec/trivy@sha256:ab70a02200597efa04748f210f793936eb647cbcdb0ea69cc30b226d6f5a22c7
+  CHECKOV_VERSION: "3.4.3"
+  ZIZMOR_VERSION: "1.32.0"
 
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
@@ -38,6 +44,11 @@ jobs:
         run: ansible-galaxy collection install -r collections/requirements.yml -p collections
       - name: yamllint (workflow files)
         run: yamllint .github
+      - name: zizmor (workflow security)
+        if: ${{ !cancelled() }}
+        run: |
+          pip install "zizmor==$ZIZMOR_VERSION"
+          zizmor --offline .github/workflows
       - name: ansible-lint
         if: ${{ !cancelled() }}
         run: ansible-lint
@@ -56,6 +67,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: gitleaks
         run: |
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/repo" "$GITLEAKS_IMAGE" \
@@ -71,6 +83,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - name: KICS scan
         run: |
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/src" "$KICS_IMAGE" scan \
@@ -106,10 +120,78 @@ jobs:
         with:
           name: kics-results
           path: kics-results
+
+  checkov:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Install checkov
+        run: pip install "checkov==$CHECKOV_VERSION"
+      # ข้ามรายจุดด้วย "# checkov:skip=<id>:<เหตุผล>" ใน task ไม่ใช้ --skip-check ทั้ง repo
+      - name: checkov (ansible + github actions)
+        run: |
+          checkov -d . --framework ansible github_actions \
+            --skip-path collections --compact \
+            -o cli -o sarif --output-file-path console,checkov-results
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: checkov-results
+          path: checkov-results
+
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      # หา image ทุกตัวที่ role ใช้ (ไม่รวม molecule และ image ที่เป็นตัวแปร Jinja)
+      - name: list images
+        id: list
+        run: |
+          imgs=$(grep -rhoE '^\s*image:\s*"?[^"[:space:]]+' roles --include='*.yml' --exclude-dir=molecule \
+            | sed -E 's/^\s*image:\s*"?//' | grep -v '{{' | sort -u | tr '\n' ' ')
+          echo "images=$imgs" >> "$GITHUB_OUTPUT"
+          echo "images: $imgs"
+      # ตอนนี้ยังไม่ทำให้ CI แดง (exit-code 0) ดูผลใน summary แล้วค่อยเปลี่ยนเป็น --exit-code 1
+      - name: trivy image
+        env:
+          IMAGES: ${{ steps.list.outputs.images }}
+        run: |
+          mkdir -p trivy-results
+          {
+            echo "## Trivy: ช่องโหว่ใน container image (HIGH/CRITICAL ที่มี fix แล้ว)"
+            echo
+            echo "| image | CRITICAL | HIGH |"
+            echo "| --- | --- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for img in $IMAGES; do
+            out="trivy-results/$(echo "$img" | tr '/:' '__').json"
+            docker run --rm -v "$PWD/trivy-results:/out" "$TRIVY_IMAGE" image --quiet \
+              --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 \
+              --format json --output "/out/$(basename "$out")" "$img"
+            c=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' "$out")
+            h=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' "$out")
+            echo "| \`$img\` | $c | $h |" >> "$GITHUB_STEP_SUMMARY"
+            [ "$c" -eq 0 ] || echo "::warning::$img has $c CRITICAL vulnerabilities with a fix available"
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: trivy-results
+          path: trivy-results
+
   molecule:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"

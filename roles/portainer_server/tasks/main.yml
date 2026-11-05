@@ -33,6 +33,7 @@
 
 # Must wait for the container to be ready to accept requests before calling the API
 - name: Wait for Portainer Server API to be ready
+  # checkov:skip=CKV_ANSIBLE_1:Portainer API on localhost:9443 uses a self-signed cert
   ansible.builtin.uri:
     url: "https://localhost:9443/api/system/status"
     validate_certs: false
@@ -45,6 +46,7 @@
 # Public, unauthenticated endpoint Portainer's own web UI uses to decide whether to
 # show the "create admin" wizard or the login page: 404 = no admin yet, 204 = admin exists.
 - name: Check if admin account already exists
+  # checkov:skip=CKV_ANSIBLE_1:Portainer API on localhost:9443 uses a self-signed cert
   ansible.builtin.uri:
     url: "https://localhost:9443/api/users/admin/check"
     method: GET
@@ -63,6 +65,7 @@
 # Only reachable while no admin exists yet (that's what --no-setup-token opened up
 # without needing to scrape the setup_token out of docker logs within 5 minutes).
 - name: Initialize Portainer admin account via API
+  # checkov:skip=CKV_ANSIBLE_1:Portainer API on localhost:9443 uses a self-signed cert
   ansible.builtin.uri:
     url: "https://localhost:9443/api/users/admin/init"
     method: POST
@@ -80,6 +83,7 @@
   when: portainer_server_admin_check.status == 404
 
 - name: Authenticate to Portainer to get JWT
+  # checkov:skip=CKV_ANSIBLE_1:Portainer API on localhost:9443 uses a self-signed cert
   ansible.builtin.uri:
     url: "https://localhost:9443/api/auth"
     method: POST
@@ -99,6 +103,7 @@
 # Portainer only shows the raw token once, at creation time (can't be retrieved again)
 # so we don't check for an existing token — create a new one every run and delete the old one to avoid buildup
 - name: List existing tokens to clean up old ones from previous runs
+  # checkov:skip=CKV_ANSIBLE_1:Portainer API on localhost:9443 uses a self-signed cert
   ansible.builtin.uri:
     url: "https://localhost:9443/api/users/1/tokens"
     method: GET
@@ -110,6 +115,7 @@
   # no_log: true  # TODO: เปิดก่อนขึ้น prod (ปิดไว้ใน dev เพื่อดู output)
 
 - name: Remove old ansible-provisioning tokens
+  # checkov:skip=CKV_ANSIBLE_1:Portainer API on localhost:9443 uses a self-signed cert
   ansible.builtin.uri:
     url: "https://localhost:9443/api/users/1/tokens/{{ item.id }}"
     method: DELETE
@@ -129,6 +135,7 @@
       old ansible-provisioning tokens
 
 - name: Create a fresh API access token for this run
+  # checkov:skip=CKV_ANSIBLE_1:Portainer API on localhost:9443 uses a self-signed cert
   ansible.builtin.uri:
     url: "https://localhost:9443/api/users/1/tokens"
     method: POST
