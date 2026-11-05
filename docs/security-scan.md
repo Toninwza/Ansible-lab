@@ -9,7 +9,10 @@
 | 3. secret | password/token ในโค้ดและ git history, vault ที่ลืมเข้ารหัส | `secrets`: gitleaks | ✅ |
 | 4. config ไม่ปลอดภัย | http, `validate_certs: false`, ลายเซ็นแพ็กเกจ, ค่าใน `ansible.cfg` | `kics` + `checkov` (ansible) | ✅ CRITICAL/HIGH |
 | 5. image ที่ deploy | CVE ใน container image ที่ role ดึงมา | `images`: Trivy | ⚠️ ยังไม่ (แค่ warning + summary) |
-| 6. ผลหลังรันจริง | role รันผ่านบน container จริง | `molecule` | ✅ |
+| 6. dependency ของ CI | CVE ใน python package, เวอร์ชันต้อง pin ตรงตัว (pip และ galaxy collection) | `deps`: pip-audit + สคริปต์เช็ก pin | ✅ |
+| 7. ผลหลังรันจริง | role รันผ่านใน container จริง, รันซ้ำแล้วไม่มีอะไรเปลี่ยน (idempotence), ผ่าน role `verify` | `molecule-plan` + `molecule` | ✅ |
+
+ผลของ KICS และ Checkov ถูกอัปโหลดเป็น SARIF เข้า **Security > Code scanning** และขึ้นตรงบรรทัดใน PR ด้วย
 
 ## ทำไมมีทั้ง KICS และ Checkov
 ผลจากการรันกับ repo นี้ (ดู `docs/kics/`):
@@ -23,12 +26,40 @@
 
 สองตัวนี้ทับกันบางส่วน แต่ต่างตัวต่างมีจุดที่อีกตัวจับไม่ได้ และทั้งคู่ใช้ต่อกับ OpenTofu ได้
 
-## การข้ามแบบมีเหตุผล
-ห้ามปิดกฎทั้ง repo ให้ข้ามเป็นรายจุดพร้อมเหตุผลเสมอ:
+## Molecule
+scenario กลางอยู่ที่ `molecule/default` ใช้กับทุก role โดยบอก role ผ่าน env:
+
+```bash
+MOLECULE_ROLE=docker_engine molecule test
+```
+
+| เหตุการณ์ | เทส role ไหน |
+|---|---|
+| push | เฉพาะ role ที่ไฟล์ใน `roles/<role>/` เปลี่ยนใน commit นั้น |
+| pull request เข้า main, กดรันเอง (workflow_dispatch) | ทุก role |
+| push ที่แก้ `molecule/`, workflow, `requirements-*.txt` หรือ `collections/requirements.yml` | ทุก role |
+
+- role ที่ต้องมีตัวอื่นรันก่อน (เช่น portainer ต้องมี docker) กำหนดใน `molecule_role_deps` ใน `molecule/default/converge.yml`
+- role ที่ยังเทสไม่ได้ใส่ใน `molecule/skip-roles.txt` พร้อมเหตุผล
+
+## การข้าม (exception)
+ห้ามปิดกฎทั้ง repo ให้ข้ามเป็นรายจุดพร้อมเหตุผลเสมอ
+
+**กฎของทีม:** การข้ามใหม่ทุกจุดต้องมี เหตุผล, ticket และคนอนุมัติ ในบรรทัดเดียวกัน เช่น
+
+```yaml
+# checkov:skip=CKV_ANSIBLE_1:Portainer localhost self-signed cert (ATR-123, approved: <ชื่อ>)
+```
+
+ต้องผ่าน review ใน PR ทุกครั้ง ห้ามแอบใส่มากับ commit อื่น
+
+รูปแบบของแต่ละเครื่องมือ:
 - Checkov: `# checkov:skip=<ID>:<เหตุผล>` ใต้ `- name:` ของ task
 - KICS: `# kics-scan ignore-line` หรือ `# kics-scan disable=<query-id>` (อย่าใช้ `# kics-scan ignore` ทั้งไฟล์)
 
-ที่ข้ามอยู่ตอนนี้:
+- ansible-lint: `.ansible-lint-ignore` (ไฟล์ + rule)
+
+ที่ข้ามอยู่ตอนนี้ (baseline ก่อนมีกฎ ยังไม่มี ticket):
 - 13 task ที่เรียก Portainer API ผ่าน `localhost:9443` ซึ่งใช้ self-signed cert (`CKV_ANSIBLE_1`)
 - 1 task ที่เรียก nginx stub_status ผ่าน `127.0.0.1` (`CKV2_ANSIBLE_1`)
 

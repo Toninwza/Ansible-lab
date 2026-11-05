@@ -1,0 +1,3 @@
+# role ที่ยังเทสด้วย molecule ไม่ได้ (บรรทัดละ role: <ชื่อ role> <เหตุผล>)
+# ลบบรรทัดออกเมื่อแก้สาเหตุแล้ว
+nginx_proxy ต้องใช้ compose file, cert และ config จากนอก repo (nginx_proxy_config_src_dir, nginx_proxy_cert_src_dir)

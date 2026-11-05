@@ -1,6 +1,4 @@
-# รอบแรกยังไม่ pin เพื่อให้รันผ่านก่อน
-# หลังรันสำเร็จ ดูเวอร์ชันจาก log ของ step "Install tools" แล้วเปลี่ยนเป็น ==x.y.z ทุกบรรทัด
-ansible-core
-ansible-lint
-yamllint
- 
+# pin ตามเวอร์ชันที่ CI ติดตั้งจริง (2026-11-05) และ pip-audit ตรวจไฟล์นี้ทุกรอบ
+ansible-core==2.21.6
+ansible-lint==26.10.1
+yamllint==1.38.0

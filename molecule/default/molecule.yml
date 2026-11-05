@@ -1,0 +1,34 @@
+---
+# scenario กลางที่ใช้ร่วมกันทุก role: บอก role ที่จะเทสผ่าน env MOLECULE_ROLE
+#   MOLECULE_ROLE=docker_engine molecule test
+# รันจาก root ของ repo
+driver:
+  name: docker
+platforms:
+  - name: instance
+    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    pre_build_image: true
+    privileged: true
+    cgroupns_mode: host
+    command: ""
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      # docker ข้างใน container ต้องมีที่เก็บ layer ที่ไม่ใช่ overlay ซ้อน overlay
+      - /var/lib/docker
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_ROLES_PATH: "${MOLECULE_PROJECT_DIRECTORY}/roles"
+    ANSIBLE_COLLECTIONS_PATH: "${MOLECULE_PROJECT_DIRECTORY}/collections"
+  inventory:
+    group_vars:
+      all:
+        # ค่าที่ปกติส่งมาจาก extra-vars ตอน deploy จริง ใช้ค่าทดสอบแทน
+        docker_address_pool_base: "10.200.0.0/16"
+        docker_address_pool_size: 24
+        docker_bip: "10.199.0.1/24"
+        docker_log_max_size: "10m"
+        docker_log_max_file: "3"
+        docker_live_restore: false
+verifier:
+  name: ansible

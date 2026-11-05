@@ -1,0 +1,30 @@
+---
+# ใช้ role verify ของ repo เองตรวจผล โดยเปิดเฉพาะเช็กที่เกี่ยวกับ role ที่เทส
+- name: Verify
+  hosts: all
+  become: true
+  vars:
+    molecule_role: "{{ lookup('env', 'MOLECULE_ROLE') }}"
+    molecule_uses_docker: "{{ molecule_role in ['docker_engine', 'portainer_server', 'portainer_agent', 'verify'] }}"
+  tasks:
+    - name: Run the repo's verify role for docker-based roles
+      ansible.builtin.include_role:
+        name: verify
+      vars:
+        install_portainer_server: "{{ molecule_role in ['portainer_server', 'portainer_agent'] }}"
+      when: molecule_uses_docker | bool
+
+    - name: Check node is installed by nvm
+      ansible.builtin.shell: |
+        set -o pipefail
+        bash -lc 'source ~/.nvm/nvm.sh && node --version'
+      args:
+        executable: /bin/bash
+      become_user: "{{ nvm_user | default('ubuntu') }}"
+      changed_when: false
+      when: molecule_role == 'nvm'
+
+    - name: Check dotnet is installed
+      ansible.builtin.command: dotnet --version
+      changed_when: false
+      when: molecule_role == 'dotnet'

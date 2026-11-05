@@ -1,4 +1,5 @@
 ---
+# pin เวอร์ชันตรงตัวเสมอ (job "deps" จะล้มถ้าเป็นช่วงหรือไม่ได้ใส่)
 collections:
   - name: community.docker
-    version: ">=3.0.0"
+    version: "5.4.0"

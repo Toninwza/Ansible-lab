@@ -1,0 +1,27 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  vars:
+    molecule_role: "{{ lookup('env', 'MOLECULE_ROLE') }}"
+    # role ที่ต้องรันก่อน role ที่จะเทส (ลำดับเดียวกับ playbooks/main.yml)
+    molecule_role_deps:
+      portainer_server: [docker_engine]
+      portainer_agent: [docker_engine, portainer_server]
+      verify: [docker_engine]
+  tasks:
+    - name: Require MOLECULE_ROLE
+      ansible.builtin.assert:
+        that: molecule_role | length > 0
+        fail_msg: "Set MOLECULE_ROLE to the role under test, e.g. MOLECULE_ROLE=docker_engine molecule test"
+
+    - name: Apply dependencies of the role under test
+      ansible.builtin.include_role:
+        name: "{{ molecule_dep }}"
+      loop: "{{ molecule_role_deps[molecule_role] | default([]) }}"
+      loop_control:
+        loop_var: molecule_dep
+
+    - name: Apply the role under test
+      ansible.builtin.include_role:
+        name: "{{ molecule_role }}"

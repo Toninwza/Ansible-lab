@@ -1,8 +1,0 @@
----
-- name: Verify
-  hosts: all
-  become: true
-  tasks:
-    - name: Verify the role under test
-      ansible.builtin.include_role:
-        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
