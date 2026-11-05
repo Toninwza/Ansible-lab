@@ -4,19 +4,19 @@
 
 | workflow | รันเมื่อ | job |
 |---|---|---|
-| `ansible-ci.yml` (flow หลัก) | ทุก push และ PR เข้า main | `lint`, `secrets`, `iac-scan`, `molecule` (เฉพาะ role ที่เปลี่ยน) |
-| `full-scan.yml` (สแกนเต็ม) | กดรันเองเท่านั้น (Actions > Full Scan > Run workflow) | `molecule` ทุก role, `images`, `deps` |
+| Ansible CI (`ansible-ci.yml`) | ทุก push และ PR เข้า main | 1. Lint, 2. Secrets, 3. IaC scan, 4. Molecule (เฉพาะ role ที่เปลี่ยน) |
+| Ansible Full Scan (`full-scan.yml`) | กดรันเองเท่านั้น | 2. Molecule ทุก role, 3. Image CVEs, 4. Python CVEs |
 
 | ชั้น | ตรวจอะไร | อยู่ที่ไหน | ทำ CI แดง? |
 |---|---|---|---|
-| 1. คุณภาพโค้ด | best practice ของ Ansible, YAML, syntax (ansible-lint ทำ syntax-check ให้ด้วย) | หลัก `lint`: ansible-lint, yamllint | ✅ |
-| 2. ตัว workflow เอง | ช่องโหว่ของ GitHub Actions (token ค้าง, script injection) | หลัก `lint`: zizmor | ✅ |
-| 3. dependency ต้อง pin | pip ต้องเป็น `==`, galaxy collection ต้องเป็น x.y.z | หลัก `lint` | ✅ |
-| 4. secret | password/token ในโค้ดและ git history, vault ที่ลืมเข้ารหัส | หลัก `secrets`: gitleaks | ✅ |
-| 5. config ไม่ปลอดภัย | http, `validate_certs: false`, ลายเซ็นแพ็กเกจ, ค่าใน `ansible.cfg` | หลัก `iac-scan`: KICS + Checkov | ✅ CRITICAL/HIGH |
-| 6. ผลหลังรันจริง | role รันผ่านใน container จริง, รันซ้ำแล้วไม่เปลี่ยน (idempotence), ผ่าน role `verify` | หลัก `molecule` (role ที่เปลี่ยน) · เต็ม `molecule` (ทุก role) | ✅ |
-| 7. image ที่ deploy | CVE ใน container image ที่ role ดึงมา | เต็ม `images`: Trivy | ⚠️ ยังไม่ (แค่ warning + summary) |
-| 8. CVE ของ dependency | CVE ใน python package ของ CI | เต็ม `deps`: pip-audit | ✅ |
+| 1. คุณภาพโค้ด | best practice ของ Ansible, YAML, syntax (ansible-lint ทำ syntax-check ให้ด้วย) | CI › 1. Lint: ansible-lint, yamllint | ✅ |
+| 2. ตัว workflow เอง | ช่องโหว่ของ GitHub Actions (token ค้าง, script injection) | CI › 1. Lint: zizmor | ✅ |
+| 3. dependency ต้อง pin | pip ต้องเป็น `==`, galaxy collection ต้องเป็น x.y.z | CI › 1. Lint | ✅ |
+| 4. secret | password/token ในโค้ดและ git history, vault ที่ลืมเข้ารหัส | CI › 2. Secrets: gitleaks | ✅ |
+| 5. config ไม่ปลอดภัย | http, `validate_certs: false`, ลายเซ็นแพ็กเกจ, ค่าใน `ansible.cfg` | CI › 3. IaC scan: KICS + Checkov | ✅ CRITICAL/HIGH |
+| 6. ผลหลังรันจริง | role รันผ่านใน container จริง, รันซ้ำแล้วไม่เปลี่ยน (idempotence), ผ่าน role `verify` | CI › 4. Molecule (role ที่เปลี่ยน) · Full Scan › 2. Molecule (ทุก role) | ✅ |
+| 7. image ที่ deploy | CVE ใน container image ที่ role ดึงมา | Full Scan › 3. Image CVEs: Trivy | ⚠️ ยังไม่ (แค่ warning + summary) |
+| 8. CVE ของ dependency | CVE ใน python package ของ CI | Full Scan › 4. Python CVEs: pip-audit | ✅ |
 
 ผลของ KICS และ Checkov ถูกอัปโหลดเป็น SARIF เข้า **Security > Code scanning** และขึ้นตรงบรรทัดใน PR ด้วย
 
