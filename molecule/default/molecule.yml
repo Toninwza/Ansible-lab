@@ -13,8 +13,10 @@ platforms:
     command: ""
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
-      # docker ข้างใน container ต้องมีที่เก็บ layer ที่ไม่ใช่ overlay ซ้อน overlay
+      # docker/containerd ข้างใน container ต้องเก็บ layer บน volume จริง
+      # ถ้าอยู่บน overlay ของ container จะสร้าง container ไม่ได้ (overlay ซ้อน overlay)
       - /var/lib/docker
+      - /var/lib/containerd
 provisioner:
   name: ansible
   env:

@@ -1,30 +1,24 @@
 # Security scan flow (atrium · Ansible)
 
-แต่ละ job ตรวจคนละเรื่อง ถ้าตัวไหนตรวจซ้ำกับอีกตัว จะเขียนบอกไว้ในตาราง
+มี 2 workflow
 
-| ชั้น | ตรวจอะไร | job / เครื่องมือ | ทำ CI แดง? |
+| workflow | รันเมื่อ | job |
+|---|---|---|
+| `ansible-ci.yml` (flow หลัก) | ทุก push และ PR เข้า main | `lint`, `secrets`, `iac-scan`, `molecule` (เฉพาะ role ที่เปลี่ยน) |
+| `full-scan.yml` (สแกนเต็ม) | กดรันเองเท่านั้น (Actions > Full Scan > Run workflow) | `molecule` ทุก role, `images`, `deps` |
+
+| ชั้น | ตรวจอะไร | อยู่ที่ไหน | ทำ CI แดง? |
 |---|---|---|---|
-| 1. คุณภาพโค้ด | best practice ของ Ansible, YAML, syntax | `lint`: ansible-lint, yamllint, syntax-check | ✅ |
-| 2. ตัว workflow เอง | ช่องโหว่ของ GitHub Actions (เช่น token ค้าง, script injection) | `lint`: zizmor · `checkov`: github_actions | ✅ |
-| 3. secret | password/token ในโค้ดและ git history, vault ที่ลืมเข้ารหัส | `secrets`: gitleaks | ✅ |
-| 4. config ไม่ปลอดภัย | http, `validate_certs: false`, ลายเซ็นแพ็กเกจ, ค่าใน `ansible.cfg` | `kics` + `checkov` (ansible) | ✅ CRITICAL/HIGH |
-| 5. image ที่ deploy | CVE ใน container image ที่ role ดึงมา | `images`: Trivy | ⚠️ ยังไม่ (แค่ warning + summary) |
-| 6. dependency ของ CI | CVE ใน python package, เวอร์ชันต้อง pin ตรงตัว (pip และ galaxy collection) | `deps`: pip-audit + สคริปต์เช็ก pin | ✅ |
-| 7. ผลหลังรันจริง | role รันผ่านใน container จริง, รันซ้ำแล้วไม่มีอะไรเปลี่ยน (idempotence), ผ่าน role `verify` | `molecule-plan` + `molecule` | ✅ |
+| 1. คุณภาพโค้ด | best practice ของ Ansible, YAML, syntax (ansible-lint ทำ syntax-check ให้ด้วย) | หลัก `lint`: ansible-lint, yamllint | ✅ |
+| 2. ตัว workflow เอง | ช่องโหว่ของ GitHub Actions (token ค้าง, script injection) | หลัก `lint`: zizmor | ✅ |
+| 3. dependency ต้อง pin | pip ต้องเป็น `==`, galaxy collection ต้องเป็น x.y.z | หลัก `lint` | ✅ |
+| 4. secret | password/token ในโค้ดและ git history, vault ที่ลืมเข้ารหัส | หลัก `secrets`: gitleaks | ✅ |
+| 5. config ไม่ปลอดภัย | http, `validate_certs: false`, ลายเซ็นแพ็กเกจ, ค่าใน `ansible.cfg` | หลัก `iac-scan`: KICS + Checkov | ✅ CRITICAL/HIGH |
+| 6. ผลหลังรันจริง | role รันผ่านใน container จริง, รันซ้ำแล้วไม่เปลี่ยน (idempotence), ผ่าน role `verify` | หลัก `molecule` (role ที่เปลี่ยน) · เต็ม `molecule` (ทุก role) | ✅ |
+| 7. image ที่ deploy | CVE ใน container image ที่ role ดึงมา | เต็ม `images`: Trivy | ⚠️ ยังไม่ (แค่ warning + summary) |
+| 8. CVE ของ dependency | CVE ใน python package ของ CI | เต็ม `deps`: pip-audit | ✅ |
 
 ผลของ KICS และ Checkov ถูกอัปโหลดเป็น SARIF เข้า **Security > Code scanning** และขึ้นตรงบรรทัดใน PR ด้วย
-
-## ทำไมมีทั้ง KICS และ Checkov
-ผลจากการรันกับ repo นี้ (ดู `docs/kics/`):
-
-| | KICS | Checkov |
-|---|---|---|
-| ไฟล์ทดสอบ HTTP 6 แบบ | จับได้ 1 | จับได้ 5 |
-| repo จริง (ก่อน skip) | 0 | 14 |
-| ตรวจ `ansible.cfg` (เช่น `allow_unsafe_lookups`) | ✅ | ❌ |
-| ใช้ต่อกับ OpenTofu | ✅ (กฎ cloud เยอะ) | ✅ |
-
-สองตัวนี้ทับกันบางส่วน แต่ต่างตัวต่างมีจุดที่อีกตัวจับไม่ได้ และทั้งคู่ใช้ต่อกับ OpenTofu ได้
 
 ## Molecule
 scenario กลางอยู่ที่ `molecule/default` ใช้กับทุก role โดยบอก role ผ่าน env:
@@ -33,11 +27,13 @@ scenario กลางอยู่ที่ `molecule/default` ใช้กับ
 MOLECULE_ROLE=docker_engine molecule test
 ```
 
-| เหตุการณ์ | เทส role ไหน |
+| ที่ไหน | เทส role ไหน |
 |---|---|
-| push | เฉพาะ role ที่ไฟล์ใน `roles/<role>/` เปลี่ยนใน commit นั้น |
-| pull request เข้า main, กดรันเอง (workflow_dispatch) | ทุก role |
-| push ที่แก้ `molecule/`, workflow, `requirements-*.txt` หรือ `collections/requirements.yml` | ทุก role |
+| flow หลัก (push) | เฉพาะ role ที่ไฟล์ใน `roles/<role>/` เปลี่ยน เทียบกับ commit ก่อนหน้า |
+| flow หลัก (PR) | เฉพาะ role ที่เปลี่ยน เทียบกับ base branch |
+| `full-scan.yml` | ทุก role แยก job ละ role |
+
+ถ้าแก้ `molecule/`, `requirements-*.txt` หรือ `collections/requirements.yml` flow หลักจะขึ้น warning ให้ไปกดรัน `full-scan.yml`
 
 - role ที่ต้องมีตัวอื่นรันก่อน (เช่น portainer ต้องมี docker) กำหนดใน `molecule_role_deps` ใน `molecule/default/converge.yml`
 - role ที่ยังเทสไม่ได้ใส่ใน `molecule/skip-roles.txt` พร้อมเหตุผล

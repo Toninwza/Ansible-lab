@@ -1,5 +1,8 @@
 name: "Ansible Security Scan"
 
+# flow หลัก: รันทุก push / PR เป็นด่านที่ต้องผ่าน
+# งานหนัก (molecule ทุก role, สแกน image, pip-audit) อยู่ใน full-scan.yml
+
 on:
   push:
     branches: ["**"]
@@ -21,13 +24,11 @@ env:
   # pin ด้วย digest ที่ได้จาก log ของรันแรก (วันที่ 2026-11-03)
   GITLEAKS_IMAGE: zricethezav/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
   KICS_IMAGE: checkmarx/kics@sha256:ef29dbac14b046b1ef65f3280646112e927a61781c5f01bca1aeb723e0b96003
-  # aquasec/trivy:0.58.1
-  TRIVY_IMAGE: aquasec/trivy@sha256:ab70a02200597efa04748f210f793936eb647cbcdb0ea69cc30b226d6f5a22c7
   CHECKOV_VERSION: "3.4.3"
   ZIZMOR_VERSION: "1.32.0"
-  PIP_AUDIT_VERSION: "2.10.1"
 
 jobs:
+  # yamllint + zizmor + ansible-lint (ทำ syntax-check ให้ด้วย) + เช็กว่า dependency pin แล้ว
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -40,27 +41,32 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-ci.txt
       - name: Install tools
-        run: pip install -r requirements-ci.txt
+        run: pip install -r requirements-ci.txt "zizmor==$ZIZMOR_VERSION"
       - name: Install collections
         run: ansible-galaxy collection install -r collections/requirements.yml -p collections
       - name: yamllint (workflow + molecule files)
         run: yamllint .github molecule
       - name: zizmor (workflow security)
         if: ${{ !cancelled() }}
-        run: |
-          pip install "zizmor==$ZIZMOR_VERSION"
-          zizmor --offline .github/workflows
+        run: zizmor --offline .github/workflows
       - name: ansible-lint
         if: ${{ !cancelled() }}
         run: ansible-lint
-      - name: syntax-check
+      - name: dependencies must be pinned
         if: ${{ !cancelled() }}
         run: |
-          for f in playbooks/*.yml playbooks/*.yaml; do
-            [ -f "$f" ] || continue
-            echo "== $f"
-            ansible-playbook "$f" --syntax-check -i localhost,
-          done
+          bad=$(grep -hvE '^\s*(#|-r |$)' requirements-*.txt | grep -vE '^[][A-Za-z0-9_.-]+==[0-9][^ ]*$' || true)
+          [ -z "$bad" ] || { echo "::error::python requirements not pinned with ==:"; echo "$bad"; exit 1; }
+          python3 - <<'EOF'
+          import re, sys, yaml
+          cols = yaml.safe_load(open("collections/requirements.yml")).get("collections", [])
+          bad = [c if isinstance(c, str) else c.get("name") for c in cols
+                 if isinstance(c, str) or not re.fullmatch(r"\d+\.\d+\.\d+", str(c.get("version", "")))]
+          if bad:
+              print(f"::error::collections without an exact x.y.z version: {bad}")
+              sys.exit(1)
+          print(f"{len(cols)} collection(s) pinned")
+          EOF
 
   secrets:
     runs-on: ubuntu-latest
@@ -80,40 +86,8 @@ jobs:
           bad=$(grep -L '^\$ANSIBLE_VAULT' $files || true)
           [ -z "$bad" ] || { echo "Unencrypted vault files:"; echo "$bad"; exit 1; }
 
-  deps:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.12"
-      # CVE ของ python package ที่ CI ใช้ (ไฟล์ต้อง pin ด้วย == ถึงจะตรวจได้ตรง)
-      - name: pip-audit
-        run: |
-          pip install "pip-audit==$PIP_AUDIT_VERSION"
-          pip-audit -r requirements-molecule.txt
-      - name: python requirements must be pinned
-        if: ${{ !cancelled() }}
-        run: |
-          bad=$(grep -hvE '^\s*(#|-r |$)' requirements-*.txt | grep -vE '^[][A-Za-z0-9_.-]+==[0-9][^ ]*$' || true)
-          [ -z "$bad" ] || { echo "::error::not pinned with ==:"; echo "$bad"; exit 1; }
-      - name: galaxy collections must be pinned
-        if: ${{ !cancelled() }}
-        run: |
-          python3 - <<'EOF'
-          import re, sys, yaml
-          cols = yaml.safe_load(open("collections/requirements.yml")).get("collections", [])
-          bad = [c if isinstance(c, str) else c.get("name") for c in cols
-                 if isinstance(c, str) or not re.fullmatch(r"\d+\.\d+\.\d+", str(c.get("version", "")))]
-          if bad:
-              print(f"::error::collections without an exact x.y.z version: {bad}")
-              sys.exit(1)
-          print(f"{len(cols)} collection(s) pinned")
-          EOF
-
-  kics:
+  # config ที่ไม่ปลอดภัย: KICS + Checkov (ทับกันบางส่วน ดู docs/security-scan.md)
+  iac-scan:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -122,189 +96,117 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: KICS scan
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: KICS
+        id: kics
         run: |
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/src" "$KICS_IMAGE" scan \
             -p /src --type ansible --fail-on critical,high \
             --exclude-paths /src/collections/ansible_collections \
-            -o /src/kics-results --report-formats "json,sarif"
-      - name: KICS summary
-        if: always()
+            -o /src/scan-results/kics --report-formats "json,sarif"
+      # ข้ามรายจุดด้วย "# checkov:skip=<id>:<เหตุผล>" ใน task ไม่ใช้ --skip-check ทั้ง repo
+      - name: Checkov
+        id: checkov
+        if: ${{ !cancelled() }}
         run: |
-          f=kics-results/results.json
-          if [ ! -f "$f" ]; then
-            echo "KICS: ไม่พบ $f" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
+          pip install "checkov==$CHECKOV_VERSION"
+          mkdir -p scan-results
+          checkov -d . --framework ansible --skip-path collections --compact \
+            -o cli -o sarif --output-file-path console,scan-results/checkov.sarif
+      - name: Summary
+        if: ${{ !cancelled() }}
+        env:
+          KICS_OUTCOME: ${{ steps.kics.outcome }}
+          CHECKOV_OUTCOME: ${{ steps.checkov.outcome }}
+        run: |
+          f=scan-results/kics/results.json
           {
-            echo "## KICS scan"
-            echo
-            echo "| ระดับ | จำนวน |"
-            echo "| --- | --- |"
-            jq -r '(.severity_counters // {}) | to_entries[] | "| \(.key) | \(.value) |"' "$f"
-            echo
-            echo "| ระดับ | ปัญหา | ไฟล์:บรรทัด |"
-            echo "| --- | --- | --- |"
-            jq -r '
-              (.queries // [])
-              | sort_by({"CRITICAL":0,"HIGH":1,"MEDIUM":2,"LOW":3,"INFO":4}[.severity])
-              | .[] | . as $q | .files[]
-              | "| \($q.severity) | \($q.query_name) | `\(.file_name | sub("^(\\.\\./)*/?src/"; "")):\(.line)` |"
-            ' "$f"
+            echo "## IaC scan"
+            echo "KICS: **$KICS_OUTCOME** · Checkov: **$CHECKOV_OUTCOME** (รายละเอียดของ Checkov อยู่ใน log ของ step)"
+            if [ -f "$f" ]; then
+              echo
+              echo "| KICS ระดับ | ปัญหา | ไฟล์:บรรทัด |"
+              echo "| --- | --- | --- |"
+              jq -r '
+                (.queries // [])
+                | sort_by({"CRITICAL":0,"HIGH":1,"MEDIUM":2,"LOW":3,"INFO":4}[.severity])
+                | .[] | . as $q | .files[]
+                | "| \($q.severity) | \($q.query_name) | `\(.file_name | sub("^(\\.\\./)*/?src/"; "")):\(.line)` |"
+              ' "$f"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
+        if: ${{ !cancelled() }}
         with:
-          name: kics-results
-          path: kics-results
+          name: iac-scan-results
+          path: scan-results
       # ส่งผลเข้า Security > Code scanning และขึ้นตรงบรรทัดใน PR
       - uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
-        if: ${{ !cancelled() && hashFiles('kics-results/results.sarif') != '' }}
+        if: ${{ !cancelled() && steps.kics.outcome != 'skipped' }}
         with:
-          sarif_file: kics-results/results.sarif
+          sarif_file: scan-results/kics/results.sarif
           category: kics
-
-  checkov:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.12"
-      - name: Install checkov
-        run: pip install "checkov==$CHECKOV_VERSION"
-      # ข้ามรายจุดด้วย "# checkov:skip=<id>:<เหตุผล>" ใน task ไม่ใช้ --skip-check ทั้ง repo
-      - name: checkov (ansible + github actions)
-        run: |
-          checkov -d . --framework ansible github_actions \
-            --skip-path collections --compact \
-            -o cli -o sarif --output-file-path console,checkov-results
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: checkov-results
-          path: checkov-results
       - uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
-        if: ${{ !cancelled() && hashFiles('checkov-results/results_sarif.sarif') != '' }}
+        if: ${{ !cancelled() && steps.checkov.outcome != 'skipped' }}
         with:
-          sarif_file: checkov-results/results_sarif.sarif
+          sarif_file: scan-results/checkov.sarif
           category: checkov
 
-  images:
+  # เทสเฉพาะ role ที่เปลี่ยน (push: เทียบกับ commit ก่อนหน้า, PR: เทียบกับ base branch)
+  # ถ้าอยากเทสทุก role ให้กดรัน full-scan.yml
+  molecule:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      # หา image ทุกตัวที่ role ใช้ (ไม่รวม molecule และ image ที่เป็นตัวแปร Jinja)
-      - name: list images
-        id: list
-        run: |
-          imgs=$(grep -rhoE '^\s*image:\s*"?[^"[:space:]]+' roles --include='*.yml' --exclude-dir=molecule \
-            | sed -E 's/^\s*image:\s*"?//' | grep -v '{{' | sort -u | tr '\n' ' ')
-          echo "images=$imgs" >> "$GITHUB_OUTPUT"
-          echo "images: $imgs"
-      # ตอนนี้ยังไม่ทำให้ CI แดง (exit-code 0) ดูผลใน summary แล้วค่อยเปลี่ยนเป็น --exit-code 1
-      - name: trivy image
-        env:
-          IMAGES: ${{ steps.list.outputs.images }}
-        run: |
-          mkdir -p trivy-results
-          {
-            echo "## Trivy: ช่องโหว่ใน container image (HIGH/CRITICAL ที่มี fix แล้ว)"
-            echo
-            echo "| image | CRITICAL | HIGH |"
-            echo "| --- | --- | --- |"
-          } >> "$GITHUB_STEP_SUMMARY"
-          for img in $IMAGES; do
-            out="trivy-results/$(echo "$img" | tr '/:' '__').json"
-            docker run --rm -v "$PWD/trivy-results:/out" "$TRIVY_IMAGE" image --quiet \
-              --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 \
-              --format json --output "/out/$(basename "$out")" "$img"
-            c=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' "$out")
-            h=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' "$out")
-            echo "| \`$img\` | $c | $h |" >> "$GITHUB_STEP_SUMMARY"
-            [ "$c" -eq 0 ] || echo "::warning::$img has $c CRITICAL vulnerabilities with a fix available"
-          done
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: trivy-results
-          path: trivy-results
-
-  # เลือก role ที่จะเทส:
-  #   push            -> เฉพาะ role ที่เปลี่ยนใน commit นั้น
-  #   pull_request, workflow_dispatch -> ทุก role (เทสซ้ำทั้งหมดเพื่อความชัวร์)
-  #   ถ้าแก้ molecule/, workflow, requirements หรือ collections -> ทุก role
-  molecule-plan:
-    runs-on: ubuntu-latest
-    outputs:
-      roles: ${{ steps.plan.outputs.roles }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           persist-credentials: false
-      - id: plan
+      - name: find changed roles
+        id: plan
         env:
           EVENT: ${{ github.event_name }}
           BEFORE: ${{ github.event.before }}
-          SHA: ${{ github.sha }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          all=$(for d in roles/*/tasks; do basename "$(dirname "$d")"; done | sort)
-          skip=$(grep -vE '^\s*(#|$)' molecule/skip-roles.txt | awk '{print $1}' | sort)
-          mode=all
-          if [ "$EVENT" = "push" ] && [ -n "$BEFORE" ] && ! echo "$BEFORE" | grep -qE '^0+$' \
-             && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            changed=$(git diff --name-only "$BEFORE" "$SHA")
-            if echo "$changed" | grep -qE '^(molecule/|\.github/workflows/|requirements-|collections/requirements\.yml)'; then
-              mode="all (shared test setup changed)"
-            else
-              mode=changed
-              all=$(echo "$changed" | sed -nE 's#^roles/([^/]+)/.*#\1#p' | sort -u | grep -xF -f <(echo "$all") || true)
-            fi
+          case "$EVENT" in
+            push) base="$BEFORE" ;;
+            pull_request) base=$(git merge-base "origin/$BASE_REF" HEAD) ;;
+            *) base="" ;;
+          esac
+          if [ -z "$base" ] || echo "$base" | grep -qE '^0+$' || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            # branch ใหม่ หรือกดรันเอง: เทียบกับ commit ก่อนหน้า
+            base=$(git rev-parse HEAD~1 2>/dev/null || true)
           fi
-          roles=$(comm -23 <(echo "$all" | sed '/^$/d') <(echo "$skip" | sed '/^$/d'))
-          json=$(printf '%s\n' $roles | jq -R . | jq -sc 'map(select(length>0))')
-          echo "roles=$json" >> "$GITHUB_OUTPUT"
-          {
-            echo "## Molecule plan"
-            echo "- mode: **$mode**"
-            echo "- roles: \`$json\`"
-            echo "- skipped (molecule/skip-roles.txt):"
-            grep -vE '^\s*(#|$)' molecule/skip-roles.txt | sed 's/^/  - /'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  molecule:
-    needs: molecule-plan
-    if: ${{ needs.molecule-plan.outputs.roles != '[]' }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        role: ${{ fromJSON(needs.molecule-plan.outputs.roles) }}
-    name: molecule (${{ matrix.role }})
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
+          changed=$( [ -n "$base" ] && git diff --name-only "$base" HEAD || true )
+          skip=$(grep -vE '^\s*(#|$)' molecule/skip-roles.txt | awk '{print $1}')
+          roles=""
+          for r in $(echo "$changed" | sed -nE 's#^roles/([^/]+)/.*#\1#p' | sort -u); do
+            [ -d "roles/$r/tasks" ] || continue
+            if echo "$skip" | grep -qx "$r"; then echo "::notice::skip $r (molecule/skip-roles.txt)"; continue; fi
+            roles="$roles $r"
+          done
+          if echo "$changed" | grep -qE '^(molecule/|requirements-|collections/requirements\.yml)'; then
+            echo "::warning::shared test setup changed; run full-scan.yml to test every role"
+          fi
+          echo "roles=${roles# }" >> "$GITHUB_OUTPUT"
+          echo "## Molecule: ${roles:- (ไม่มี role ที่เปลี่ยน)}" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        if: ${{ steps.plan.outputs.roles != '' }}
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements-molecule.txt
       - name: Install tools
-        run: pip install -r requirements-molecule.txt
-      - name: Install collections
-        run: ansible-galaxy collection install -r collections/requirements.yml -p collections
+        if: ${{ steps.plan.outputs.roles != '' }}
+        run: |
+          pip install -r requirements-molecule.txt
+          ansible-galaxy collection install -r collections/requirements.yml -p collections
       - name: molecule test
+        if: ${{ steps.plan.outputs.roles != '' }}
         env:
-          MOLECULE_ROLE: ${{ matrix.role }}
+          ROLES: ${{ steps.plan.outputs.roles }}
           ANSIBLE_FORCE_COLOR: "1"
           PY_COLORS: "1"
         run: |
@@ -312,4 +214,10 @@ jobs:
           portainer_admin_password="$(openssl rand -base64 24)"
           echo "::add-mask::$portainer_admin_password"
           export portainer_admin_password
-          molecule test
+          failed=""
+          for role in $ROLES; do
+            echo "::group::molecule test ($role)"
+            MOLECULE_ROLE="$role" molecule test || failed="$failed $role"
+            echo "::endgroup::"
+          done
+          [ -z "$failed" ] || { echo "::error::molecule failed:$failed"; exit 1; }

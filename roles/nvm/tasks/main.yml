@@ -35,4 +35,5 @@
   become: true
   become_user: "{{ nvm_user }}"
   register: node_install
-  changed_when: "'already installed' not in node_install.stdout"
+  # nvm พิมพ์ "is already installed" ออกทาง stderr
+  changed_when: "'already installed' not in (node_install.stdout + node_install.stderr)"
